@@ -1,0 +1,21 @@
+{
+  "name": "Redis2MySql",
+  "version": "0.0.1",
+  "description": "Redis (Primary) to MySQL (Secondary) Persistence API",
+  "keywords": [
+    "key-value",
+    "redis",
+    "mysql",
+    "rdbms",
+    "persistence"
+  ],
+  "homepage": "https://github.com/identityclash/redis2mysql",
+  "license": "MIT",
+  "author": "Jerome Ngo <jerome@blumr.com> / Gene Diaz Jr. <gene@letsblumit.com>",
+  "main": "./lib/Redis2MySql",
+  "dependencies": {
+    "async": "0.9.x",
+    "redis": "0.10.x",
+    "mysql": "2.6.x"
+  }
+}
