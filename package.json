@@ -11,11 +11,14 @@
   ],
   "homepage": "https://github.com/identityclash/redis2mysql",
   "license": "MIT",
-  "author": "Jerome Ngo <jerome@blumr.com> / Gene Diaz Jr. <gene@letsblumit.com>",
+  "author": "Jerome Ngo <jerome@blumr.com> / Gene Diaz Jr. <gene@blumr.com>",
   "main": "./lib/Redis2MySql",
   "dependencies": {
     "async": "0.9.x",
-    "redis": "0.10.x",
-    "mysql": "2.6.x"
+    "//" : {"redis": "0.10.x"},
+    "mysql": "2.6.x",
+    "ioredis": "1.1.x",
+    "lazy.js": "0.4.x",
+    "is_js": "0.7.x"
   }
 }

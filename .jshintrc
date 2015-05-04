@@ -1,0 +1,21 @@
+{
+  "predef": [],
+  "indent": 2,
+  "quotmark": "single",
+  "plusplus": false,
+  "trailing": true,
+  "noempty": true,
+  "eqeqeq": true,
+  "newcap": true,
+  "strict": true,
+  "unused": true,
+  "nonew": true,
+  "noarg": true,
+  "undef": true,
+  "curly": true,
+  "forin": true,
+  "immed": true,
+  "node": true,
+  "es3": true,
+  "mocha": true
+}
