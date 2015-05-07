@@ -5,6 +5,9 @@
 
 var Mappy = require('../lib/Redis2MySql'),
   mappy = new Mappy({
+      redis: {
+        showFriendlyErrorStack: true
+      },
       mysql: {
         user: 'root',
         database: 'mytest',
@@ -17,7 +20,7 @@ var Mappy = require('../lib/Redis2MySql'),
           string: 'str',
           list: 'lst',
           set: 'set',
-          sorted_set: 'sset',
+          sortedSet: 'zset',
           hash: 'map'
         }
       }
@@ -32,43 +35,109 @@ mappy.on('error', function (err) {
 
 mappy.set('email', ['x', 'hello_world@blumr.com'], function (err, result) {
   if (err) {
-    console.log('Error on set: ' + err);
+    console.log('Error on SET: ' + err);
   } else {
-    console.log('Set email: ' + result);
+    console.log('email SET: ' + result);
   }
 });
-//
-//mappy.get('email', 'x', function (err, result) {
-//  if (err) {
-//    console.log('Error on get: ' + err);
-//  } else {
-//    console.log('x is finally ' + result);
-//  }
-//});
 
-//mappy.lpush('name', [1], function (err, result) {
-//  if (err) {
-//    console.log('Error inserting in names: ' + err);
-//  } else {
-//    console.log('names lpush: ' + result);
-//  }
-//});
+mappy.get('email', 'x', function (err, result) {
+  if (err) {
+    console.log('Error on GET: ' + err);
+  } else {
+    console.log('x GET finally: ' + result);
+  }
+});
 
-//mappy.lindex('name', -4, function (err, result) {
-//  if (err) {
-//    console.log('Error on lindex: ' + err);
-//  } else {
-//    console.log('lst:name is ' + result);
-//  }
-//});
+mappy.lpush('name', ['one', 'two', 3], function (err, result) {
+  if (err) {
+    console.log('Error on LPUSH: ' + err);
+  } else {
+    console.log('names LPUSH: ' + result);
+  }
+});
 
-//mappy.lset('name', -4, 'four', function (err, result) {
-//  if (err) {
-//    console.log('Error on lset: ' + err);
-//  } else {
-//    console.log('lst:name lset: ' + result);
-//  }
-//});
+mappy.lindex('name', -4, function (err, result) {
+  if (err) {
+    console.log('Error on LINDEX: ' + err);
+  } else {
+    console.log('name LINDEX: ' + result);
+  }
+});
+
+mappy.lset('name', -3, 'five', function (err, result) {
+  if (err) {
+    console.log('Error on LSET: ' + err);
+  } else {
+    console.log('name LSET: ' + result);
+  }
+});
+
+mappy.sadd('sname', [1, 2, 3, 'a', 'b', 'c'], function (err, result) {
+  if (err) {
+    console.log('Error on SADD: ' + err);
+  } else {
+    console.log('snames SADD: ' + result);
+  }
+});
+
+mappy.srem('sname', [3, 2], function (err, result) {
+  if (err) {
+    console.log('Error on SREM: ' + err);
+  } else {
+    console.log('snames SREM: ' + result);
+  }
+});
+
+mappy.smembers('sname', function (err, result) {
+  if (err) {
+    console.log('Error on SMEMBERS: ' + err);
+  } else {
+    for (var i = 0; i < result.length; i++) {
+      console.log('snames SMEMBERS: ' + result[i].member);
+    }
+  }
+});
+
+mappy.sismember('sname', 'x', function (err, result) {
+  if (err) {
+    console.log('Error on SISMEMBER: ' + err);
+  } else {
+    console.log('snames SISMEMBER: ' + result);
+  }
+});
+
+mappy.scard('sname', function (err, result) {
+  if (err) {
+    console.log('Error on SCARD: ' + err);
+  } else {
+    console.log('sname SCARD: ' + result);
+  }
+});
+
+mappy.zadd('zname', [1, 'one', 2, 'two', 3, 'three'], function (err, result) {
+  if (err) {
+    console.log('Error on ZADD: ' + err);
+  } else {
+    console.log('sname ZADD: ' + result);
+  }
+});
+
+mappy.zincrby('zname', 1.9, 'one', function (err, result) {
+  if (err) {
+    console.log('Error on ZINCRBY: ' + err);
+  } else {
+    console.log('sname ZINCRBY: ' + result);
+  }
+});
+
+mappy.zscore('zname', 'one', function (err, result) {
+  if (err) {
+    console.log('Error on ZSCORE: ' + err);
+  } else {
+    console.log('zname ZSCORE: ' + result);
+  }
+});
 
 
 setTimeout(function (err) {
