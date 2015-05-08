@@ -115,7 +115,9 @@ mappy.scard('sname', function (err, result) {
   }
 });
 
-mappy.zadd('zname', [1, 'one', 2, 'two', 3, 'three'], function (err, result) {
+mappy.zadd('zname', [4.4, 'four point four',
+  5.5, 'five point five',
+  6.3, 'six point three'], function (err, result) {
   if (err) {
     console.log('Error on ZADD: ' + err);
   } else {
@@ -139,6 +141,118 @@ mappy.zscore('zname', 'one', function (err, result) {
   }
 });
 
+mappy.zrangebyscore('zname', '-inf', 7, 'withscores', 'limit', 1, 5,
+  function (err, result) {
+
+    var i, value;
+
+    if (err) {
+      console.log('Error on ZRANGEBYSCORE: ' + err);
+    } else {
+      for (i = 0; i < result.length; i++) {
+        if (typeof result[i] === 'object') {
+          for (value in result[i]) {
+            if (result[i].hasOwnProperty(value)) {
+              console.log('zname ZRANGEBYSCORE: ' + result[i][value]);
+            }
+          }
+        } else {
+          console.log('zname ZRANGEBYSCORE: ' + result[i]);
+        }
+      }
+    }
+  });
+
+mappy.zrevrangebyscore('zname', 4.5, '(1.3', 'withscores', 'limit', 1, 4,
+  function (err, result) {
+
+    var i, value;
+
+    if (err) {
+      console.log('Error on ZREVRANGEBYSCORE: ' + err);
+    } else {
+      for (i = 0; i < result.length; i++) {
+        if (typeof result[i] === 'object') {
+          for (value in result[i]) {
+            if (result[i].hasOwnProperty(value)) {
+              console.log('zname ZREVRANGEBYSCORE: ' + result[i][value]);
+            }
+          }
+        } else {
+          console.log('zname ZREVRANGEBYSCORE: ' + result[i]);
+        }
+      }
+    }
+  });
+
+mappy.hmset('email', ['x', 'nuts@blumr.com', 'y', 'go@blumr.com',
+  'z', 'noooo@blumr.com', 'a', 'howzy@blumr.com'], function (err, result) {
+  if (err) {
+    console.log('Error on HSET: ' + err);
+  } else {
+    console.log('email HSET: ' + result);
+  }
+});
+
+mappy.hget('email', 'x', function (err, result) {
+  if (err) {
+    console.log('Error on HGET: ' + err);
+  } else {
+    console.log('x HGET finally: ' + result);
+  }
+});
+
+mappy.hmget('email', ['x', 'y', 'z', 'a'], function (err, result) {
+
+  var i, value;
+  if (err) {
+    console.log('Error on HMGET: ' + err);
+  } else {
+    for (i = 0; i < result.length; i++) {
+      if (typeof result[i] === 'object') {
+        for (value in result[i]) {
+          if (result[i].hasOwnProperty(value)) {
+            console.log('email HGET: ' + result[i][value]);
+          }
+        }
+      } else {
+        console.log('email HMGET: ' + result[i]);
+      }
+    }
+  }
+});
+
+mappy.hgetall('email', function (err, result) {
+
+  var value;
+  if (err) {
+    console.log('Error on HGETALL: ' + err);
+  } else {
+    if (typeof result === 'object') {
+      for (value in result) {
+        if (result.hasOwnProperty(value)) {
+          console.log('email HGETALL: ' + value + ' ' + result[value]);
+        }
+      }
+    }
+  }
+});
+
+mappy.hexists('email', 'x', function (err, result) {
+  if (err) {
+    console.log('Error on HEXISTS: ' + err);
+  } else {
+    console.log('x HEXISTS finally: ' + result);
+  }
+});
+
+mappy.hdel('email', ['z'], function (err, result) {
+  if (err) {
+    console.log('Error on HDEL: ' + err);
+  } else {
+    console.log('email HDEL finally: ' + result);
+  }
+});
 
 setTimeout(function (err) {
   if (err) {
