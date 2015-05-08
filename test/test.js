@@ -33,7 +33,7 @@ mappy.on('error', function (err) {
   console.log('Error from listener: ' + err.message);
 });
 
-mappy.set('email', ['x', 'hello_world@blumr.com'], function (err, result) {
+mappy.set('email', ['z', 'maku@blumr.com'], function (err, result) {
   if (err) {
     console.log('Error on SET: ' + err);
   } else {
@@ -46,6 +46,14 @@ mappy.get('email', 'x', function (err, result) {
     console.log('Error on GET: ' + err);
   } else {
     console.log('x GET finally: ' + result);
+  }
+});
+
+mappy.exists('email', 'x', function (err, result) {
+  if (err) {
+    console.log('Error on EXISTS: ' + err);
+  } else {
+    console.log('x EXISTS finally: ' + result);
   }
 });
 
@@ -253,6 +261,8 @@ mappy.hdel('email', ['z'], function (err, result) {
     console.log('email HDEL finally: ' + result);
   }
 });
+
+
 
 setTimeout(function (err) {
   if (err) {
