@@ -4,6 +4,7 @@
 'use strict';
 
 var Mappy = require('../lib/Redis2MySql'),
+  is = require('is_js'),
   mappy = new Mappy({
       redis: {
         showFriendlyErrorStack: true
@@ -33,10 +34,18 @@ mappy.on('error', function (err) {
   console.log('Error from listener: ' + err.message);
 });
 
-mappy.set('email', ['z', 'maku@blumr.com'], function (err, result) {
+mappy.incr('email', 'd', function (err, result) {
+  if (err) {
+    console.log('Error on INCR: ' + err);
+  } else if (is.existy(result)) {
+    console.log('email INCR: ' + result);
+  }
+});
+
+mappy.set('email', ['d', 20], function (err, result) {
   if (err) {
     console.log('Error on SET: ' + err);
-  } else {
+  } else if (is.existy(result)) {
     console.log('email SET: ' + result);
   }
 });
@@ -49,6 +58,12 @@ mappy.get('email', 'x', function (err, result) {
   }
 });
 
+mappy.del(['str:email:a', 'str:email:b', 'map:email', 'lst:name'], function (err) {
+  if (err) {
+    console.log('Error on DEL ' + err);
+  }
+});
+
 mappy.exists('email', 'x', function (err, result) {
   if (err) {
     console.log('Error on EXISTS: ' + err);
@@ -57,7 +72,7 @@ mappy.exists('email', 'x', function (err, result) {
   }
 });
 
-mappy.lpush('name', ['one', 'two', 3], function (err, result) {
+mappy.lpush('name', ['one', 'two'], function (err, result) {
   if (err) {
     console.log('Error on LPUSH: ' + err);
   } else {
@@ -261,8 +276,6 @@ mappy.hdel('email', ['z'], function (err, result) {
     console.log('email HDEL finally: ' + result);
   }
 });
-
-
 
 setTimeout(function (err) {
   if (err) {
