@@ -31,26 +31,26 @@ var Mappy = require('../lib/Redis2MySql'),
 mappy.createUseSchema();
 
 mappy.on('error', function (err) {
-  console.log('Error from listener: ' + err.message);
+  console.log('Error from listener: ' + err);
 });
 
 mappy.incr('email', 'd', function (err, result) {
   if (err) {
     console.log('Error on INCR: ' + err);
-  } else if (is.existy(result)) {
+  } else {
     console.log('email INCR: ' + result);
   }
 });
 
-mappy.set('email', ['d', 20], function (err, result) {
+mappy.set('email', ['a', 'abc'], function (err, result) {
   if (err) {
     console.log('Error on SET: ' + err);
-  } else if (is.existy(result)) {
+  } else {
     console.log('email SET: ' + result);
   }
 });
 
-mappy.get('email', 'x', function (err, result) {
+mappy.get('email', 'd', function (err, result) {
   if (err) {
     console.log('Error on GET: ' + err);
   } else {
@@ -58,9 +58,11 @@ mappy.get('email', 'x', function (err, result) {
   }
 });
 
-mappy.del(['str:email:a', 'str:email:b', 'map:email', 'lst:name'], function (err) {
+mappy.del(['str:email:a', 'str:email:b', 'map:email'], function (err, result) {
   if (err) {
     console.log('Error on DEL ' + err);
+  } else {
+    console.log('DEL result: ' + result);
   }
 });
 
@@ -72,7 +74,7 @@ mappy.exists('email', 'x', function (err, result) {
   }
 });
 
-mappy.lpush('name', ['one', 'two'], function (err, result) {
+mappy.lpush('name', ['one', 'two', 'three', 'four'], function (err, result) {
   if (err) {
     console.log('Error on LPUSH: ' + err);
   } else {
@@ -80,7 +82,7 @@ mappy.lpush('name', ['one', 'two'], function (err, result) {
   }
 });
 
-mappy.lindex('name', -4, function (err, result) {
+mappy.lindex('nameZ', 0, function (err, result) {
   if (err) {
     console.log('Error on LINDEX: ' + err);
   } else {
@@ -88,7 +90,7 @@ mappy.lindex('name', -4, function (err, result) {
   }
 });
 
-mappy.lset('name', -3, 'five', function (err, result) {
+mappy.lset('name', -5, 'VALFIVE', function (err, result) {
   if (err) {
     console.log('Error on LSET: ' + err);
   } else {
@@ -115,14 +117,14 @@ mappy.srem('sname', [3, 2], function (err, result) {
 mappy.smembers('sname', function (err, result) {
   if (err) {
     console.log('Error on SMEMBERS: ' + err);
-  } else {
+  } else if (is.existy(result) && result.length > 0){
     for (var i = 0; i < result.length; i++) {
-      console.log('snames SMEMBERS: ' + result[i].member);
+      console.log('sname SMEMBERS: ' + result[i]);
     }
   }
 });
 
-mappy.sismember('sname', 'x', function (err, result) {
+mappy.sismember('sname', 'a', function (err, result) {
   if (err) {
     console.log('Error on SISMEMBER: ' + err);
   } else {
@@ -140,7 +142,8 @@ mappy.scard('sname', function (err, result) {
 
 mappy.zadd('zname', [4.4, 'four point four',
   5.5, 'five point five',
-  6.3, 'six point three'], function (err, result) {
+  6.5, 'six point three',
+  7.1, 'seven point one'], function (err, result) {
   if (err) {
     console.log('Error on ZADD: ' + err);
   } else {
@@ -156,7 +159,7 @@ mappy.zincrby('zname', 1.9, 'one', function (err, result) {
   }
 });
 
-mappy.zscore('zname', 'one', function (err, result) {
+mappy.zscore('zname', 'four point four', function (err, result) {
   if (err) {
     console.log('Error on ZSCORE: ' + err);
   } else {
@@ -166,47 +169,39 @@ mappy.zscore('zname', 'one', function (err, result) {
 
 mappy.zrangebyscore('zname', '-inf', 7, 'withscores', 'limit', 1, 5,
   function (err, result) {
-
-    var i, value;
-
     if (err) {
       console.log('Error on ZRANGEBYSCORE: ' + err);
     } else {
-      for (i = 0; i < result.length; i++) {
-        if (typeof result[i] === 'object') {
-          for (value in result[i]) {
-            if (result[i].hasOwnProperty(value)) {
-              console.log('zname ZRANGEBYSCORE: ' + result[i][value]);
-            }
-          }
-        } else {
+      if (is.existy(result) && is.not.empty(result)) {
+        for (var i = 0; i < result.length; i++) {
           console.log('zname ZRANGEBYSCORE: ' + result[i]);
         }
+      } else {
+        console.log('zname ZRANGEBYSCORE: ' + result);
       }
     }
   });
 
-mappy.zrevrangebyscore('zname', 4.5, '(1.3', 'withscores', 'limit', 1, 4,
+mappy.zrevrangebyscore('zname', 'inf', '(4.40', 'withscores', 'limit', 1, 4,
   function (err, result) {
-
-    var i, value;
-
     if (err) {
       console.log('Error on ZREVRANGEBYSCORE: ' + err);
-    } else {
-      for (i = 0; i < result.length; i++) {
-        if (typeof result[i] === 'object') {
-          for (value in result[i]) {
-            if (result[i].hasOwnProperty(value)) {
-              console.log('zname ZREVRANGEBYSCORE: ' + result[i][value]);
-            }
-          }
-        } else {
-          console.log('zname ZREVRANGEBYSCORE: ' + result[i]);
-        }
+    } else if (is.existy(result) && is.not.empty(result)) {
+      for (var i = 0; i < result.length; i++) {
+        console.log('zname ZREVRANGEBYSCORE: ' + result[i]);
       }
+    } else {
+      console.log('zname ZREVRANGEBYSCORE: ' + result);
     }
   });
+
+mappy.hset('email', 'b', 'byyGffuts@blumr.com', function (err, result) {
+  if (err) {
+    console.log('Error on HSET: ' + err);
+  } else {
+    console.log('email HSET: ' + result);
+  }
+});
 
 mappy.hmset('email', ['x', 'nuts@blumr.com', 'y', 'go@blumr.com',
   'z', 'noooo@blumr.com', 'a', 'howzy@blumr.com'], function (err, result) {
@@ -257,6 +252,8 @@ mappy.hgetall('email', function (err, result) {
           console.log('email HGETALL: ' + value + ' ' + result[value]);
         }
       }
+    } else {
+      console.log('email HGETALL: ' + result);
     }
   }
 });
@@ -269,7 +266,7 @@ mappy.hexists('email', 'x', function (err, result) {
   }
 });
 
-mappy.hdel('email', ['z'], function (err, result) {
+mappy.hdel('email', ['aaaa', 'aaax'], function (err, result) {
   if (err) {
     console.log('Error on HDEL: ' + err);
   } else {
