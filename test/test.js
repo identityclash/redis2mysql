@@ -28,10 +28,11 @@ var Mappy = require('../lib/Redis2MySql'),
     }
   );
 
-mappy.createUseSchema();
+mappy.createUseSchemaAndExpiry();
 
 mappy.on('error', function (err) {
-  console.log('Error from listener: ' + err);
+  console.log('Error from listener: ' + err.error + ' ' + err.message +
+    ' ' + err.redisKey);
 });
 
 mappy.incr('email', 'd', function (err, result) {
@@ -42,7 +43,7 @@ mappy.incr('email', 'd', function (err, result) {
   }
 });
 
-mappy.set('email', ['a', 'abc'], function (err, result) {
+mappy.set('email', ['x', 'xxx@blumr.com'], function (err, result) {
   if (err) {
     console.log('Error on SET: ' + err);
   } else {
@@ -117,7 +118,7 @@ mappy.srem('sname', [3, 2], function (err, result) {
 mappy.smembers('sname', function (err, result) {
   if (err) {
     console.log('Error on SMEMBERS: ' + err);
-  } else if (is.existy(result) && result.length > 0){
+  } else if (is.existy(result) && result.length > 0) {
     for (var i = 0; i < result.length; i++) {
       console.log('sname SMEMBERS: ' + result[i]);
     }
@@ -271,6 +272,22 @@ mappy.hdel('email', ['aaaa', 'aaax'], function (err, result) {
     console.log('Error on HDEL: ' + err);
   } else {
     console.log('email HDEL finally: ' + result);
+  }
+});
+
+mappy.expire('str:email:x', 3000, function (err, result) {
+  if (err) {
+    console.log('Error on EXPIRE: ' + err);
+  } else {
+    console.log('email EXPIRE finally: ' + result);
+  }
+});
+
+mappy.rename('str:email:x', 'str:eml:y', function (err, result) {
+  if (err) {
+    console.log('Error on RENAME: ' + err);
+  } else {
+    console.log('email RENAME finally: ' + result);
   }
 });
 
