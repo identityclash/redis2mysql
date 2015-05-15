@@ -43,7 +43,7 @@ mappy.incr('email', 'd', function (err, result) {
   }
 });
 
-mappy.set('email', ['x', 'xxx@blumr.com'], function (err, result) {
+mappy.set('email', ['y', 'zzz@blumr.com'], function (err, result) {
   if (err) {
     console.log('Error on SET: ' + err);
   } else {
@@ -83,7 +83,7 @@ mappy.lpush('name', ['one', 'two', 'three', 'four'], function (err, result) {
   }
 });
 
-mappy.lindex('nameZ', 0, function (err, result) {
+mappy.lindex('name', 0, function (err, result) {
   if (err) {
     console.log('Error on LINDEX: ' + err);
   } else {
@@ -96,6 +96,14 @@ mappy.lset('name', -5, 'VALFIVE', function (err, result) {
     console.log('Error on LSET: ' + err);
   } else {
     console.log('name LSET: ' + result);
+  }
+});
+
+mappy.rpop('name', function (err, result) {
+  if (err) {
+    console.log('Error on RPOP: ' + err);
+  } else {
+    console.log('names RPOP: ' + result);
   }
 });
 
@@ -161,6 +169,14 @@ mappy.zincrby('zname', 1.9, 'one', function (err, result) {
 });
 
 mappy.zscore('zname', 'four point four', function (err, result) {
+  if (err) {
+    console.log('Error on ZSCORE: ' + err);
+  } else {
+    console.log('zname ZSCORE: ' + result);
+  }
+});
+
+mappy.zrank('zname', 'four point four', function (err, result) {
   if (err) {
     console.log('Error on ZSCORE: ' + err);
   } else {
