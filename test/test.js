@@ -10,6 +10,17 @@ var chai = require('chai'),
   Redis = require('ioredis'),
   mysql = require('mysql'),
   OkPacket = require('../node_modules/mysql/lib/protocol/packets/OkPacket'),
+  COLUMNS = {
+    SEQ: 'time_sequence',
+    KEY: 'key',
+    FIELD: 'field',
+    VALUE: 'value',
+    MEMBER: 'member',
+    SCORE: 'score',
+    EXPIRY_DT: 'expiry_date',
+    CREATION_DT: 'creation_date',
+    LAST_UPDT_DT: 'last_update_date'
+  },
   ERRORS = {
     missingPrefix: 'All database table prefixes should be defined by the ' +
     'user.',
@@ -349,100 +360,231 @@ describe('Redis2MySQL', function () {
     });
 
     context('#set()', function () {
-      it('should receive OK from Redis for str:sometype:testkey', function (done) {
+      it('should set the key `str:sometype:testkey`, return `OK`, and insert ' +
+        'in MySQL the value of `the fox jumped`; then replace the value with ' +
+        '`the wolf smiled`', function (done) {
         instance.set('sometype', 'testkey', 'the fox jumped',
           function (err, result) {
             if (err) {
               done(err);
             } else {
               expect(result).to.be.equals('OK');
-              done();
+              extrnRedis.get('str:sometype:testkey', function (err, result) {
+                if (err) {
+                  done(err);
+                } else {
+                  expect(result).to.be.equals('the fox jumped');
+                  setTimeout(function () {
+                    extrnMySql.query(
+                      'SELECT `value` FROM `str_sometype` WHERE `key` = ? ',
+                      'testkey',
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result[0].value).to.be.equals('the fox jumped');
+                          instance.set('sometype', 'testkey', 'the wolf smiled',
+                            function (err, result) {
+                              if (err) {
+                                done(err);
+                              } else {
+                                expect(result).to.be.equals('OK');
+                                extrnRedis.get('str:sometype:testkey',
+                                  function (err, result) {
+                                    if (err) {
+                                      done(err);
+                                    } else {
+                                      expect(result).to.be
+                                        .equals('the wolf smiled');
+                                      setTimeout(function () {
+                                        extrnMySql.query(
+                                          'SELECT `value` FROM `str_sometype` ' +
+                                          'WHERE `key` = ? ',
+                                          'testkey',
+                                          function (err, result) {
+                                            if (err) {
+                                              done(err);
+                                            } else {
+                                              expect(result[0].value).to.be
+                                                .equals('the wolf smiled');
+                                              done();
+                                            }
+                                          });
+                                      }, 400);
+                                    }
+                                  });
+                              }
+                            });
+                        }
+                      });
+                  }, 400);
+                }
+              });
             }
           });
       });
+    });
 
-      it('should contain a value from Redis for key `str:sometype:testkey`',
+    context('#incr()', function () {
+      it('should increment existing key `testincrkey`, return 3, and insert ' +
+        'in MySQL the value of 3',
         function (done) {
-          extrnRedis.get('str:sometype:testkey', function (err, result) {
+          instance.incr('sometype', 'testincrkey', function (err, result) {
             if (err) {
               done(err);
             } else {
-              expect(result).to.be.equals('the fox jumped');
-              done();
+              expect(result).to.be.equals(3); // converts from string to numeric
+              extrnRedis.get('str:sometype:testincrkey', function (err, result) {
+                if (err) {
+                  done(err);
+                } else {
+                  expect(result).to.be.equals('3'); // get returns a string
+                  setTimeout(
+                    function () {
+                      extrnMySql.query(
+                        'SELECT `value` FROM `str_sometype` WHERE `key` = ? ',
+                        'testincrkey',
+                        function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result[0].value).to.be.equals('3');
+                            done();
+                          }
+                        }
+                      );
+                    }, 400);
+                }
+              });
             }
           });
         });
 
-      it('should contain a value from MySQL table `str_sometype`',
+      it('should increment the non-existent key `testcounter`, return 1, and ' +
+        'insert in MySQL the value of 1',
         function (done) {
-
-          setTimeout(
-            function () {
-              extrnMySql.query(
-                'SELECT `value` FROM `str_sometype` WHERE `key` = ? ',
-                'testkey',
-                function (err, result) {
-                  if (err) {
-                    done(err);
-                  } else {
-                    expect(result[0].value).to.be.equals('the fox jumped');
-                    done();
-                  }
+          instance.incr('somenumtype', 'testcounter', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(1);
+              extrnRedis.get('str:somenumtype:testcounter', function (err, result) {
+                if (err) {
+                  done(err);
+                } else {
+                  expect(result).to.be.equals('1'); // get returns a string
+                  setTimeout(
+                    function () {
+                      extrnMySql.query(
+                        'SELECT `value` FROM `str_somenumtype` WHERE `key` = ? ',
+                        'testcounter',
+                        function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result[0].value).to.be.equals('1');
+                            done();
+                          }
+                        }
+                      );
+                    }, 400);
                 }
-              );
-            }, 400);
+              });
+            }
+          });
         });
     });
 
-    context('#incr()', function () {
-      it('should receive a value of 3', function (done) {
-        instance.incr('sometype', 'testincrkey', function (err, result) {
+    context.only('#get()', function () {
+      beforeEach(function (done) {
+        async.series([
+          function (firstCb) {
+            extrnRedis.set('str:sometype:xx', 'this is a value',
+              function (err) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  firstCb();
+                }
+              });
+          },
+          function (secondCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS str_sometype ' +
+              '(' +
+              '`key` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              });
+          }, function (thirdCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO str_sometype (`key`, `value`) VALUES (?, ?)',
+              [
+                'xx',
+                'this is a value'
+              ],
+              function (err) {
+                if (err) {
+                  thirdCb(err);
+                } else {
+                  thirdCb();
+                }
+              });
+          }
+        ], function (err) {
           if (err) {
             done(err);
           } else {
-            expect(result).to.be.equals(3); // converts from string to numeric
             done();
           }
         });
       });
 
-      it('should contain a value from Redis for `str:sometype:testincrkey`',
+      it('should get the value of the key `str:sometype:xx` from Redis',
         function (done) {
-          extrnRedis.get('str:sometype:testincrkey', function (err, result) {
+          instance.get('sometype', 'xx', function (err, result) {
             if (err) {
               done(err);
             } else {
-              expect(result).to.be.equals('3'); // get returns a string
+              expect(result).to.be.equals('this is a value');
               done();
             }
           });
         });
 
-      it('should contain a value from MySQL table `str_sometype`', function (done) {
-
-        setTimeout(
-          function () {
-            extrnMySql.query(
-              'SELECT `value` FROM `str_sometype` WHERE `key` = ? ',
-              'testincrkey',
-              function (err, result) {
+      it('should get the value of the key `str:sometype:xx` from MySQL ' +
+        'when the key does not exist in Redis',
+        function (done) {
+          extrnRedis.del('str:sometype:xx', function (err) {
+            if (err) {
+              throw err;
+            } else {
+              instance.get('sometype', 'xx', function (err, result) {
                 if (err) {
                   done(err);
                 } else {
-                  expect(result[0].value).to.be.equals('3');
+                  expect(result).to.be.equals('this is a value');
                   done();
                 }
-              }
-            );
-          }, 400);
-      });
+              });
+            }
+          });
+        });
     });
 
     after(function () {
       async.series([
         function (cb1) {
           extrnRedis.del('str:sometype:testkey', 'str:sometype:testincrkey',
-            'str:somenumtype:testcounter', function (err) {
+            'str:somenumtype:testcounter', 'str:sometype:xx', function (err) {
               if (err) {
                 cb1(err);
               } else {
