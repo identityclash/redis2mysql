@@ -15,6 +15,7 @@ var chai = require('chai'),
     'user.',
     duplicatePrefix: 'There are duplicate user-defined database ' +
     'prefixes. Please make all prefixes unique.',
+    missingUser: 'Please specify the username',
     missingDatabase: 'Please specify the database'
   };
 
@@ -59,62 +60,30 @@ describe('Redis2MySQL', function () {
         function (done) {
           instance.redisConn.ping(function (err, result) {
             expect(result).equals('PONG');
-            done();
           });
+          done();
         });
 
       it('should possess `mysqlConn` which will make a connection',
         function (done) {
           instance.mysqlConn.ping(function (err, result) {
             expect(result).to.be.an.instanceOf(OkPacket);
-            done();
           });
+          done();
         });
 
       after(function () {
-        instance.quit();
+        if (instance) {
+          instance.quit();
+        }
       });
     });
 
-    context('wrong database', function () {
+    context('missing MySQL database', function () {
 
       var instance;
 
-      it('should access Redis2MySQL instance', function (done) {
-        instance = new Redis2MySql({
-            redis: {
-              showFriendlyErrorStack: true
-            },
-            mysql: {
-              user: 'root',
-              database: 'xxxx',
-              charset: 'utf8'
-            },
-            custom: {
-              datatypePrefix: {
-                string: 'str',
-                list: 'lst',
-                set: 'set',
-                sortedSet: 'zset',
-                hash: 'map'
-              }
-            }
-          }
-        );
-
-        instance.on('error', function (err) {
-          expect(err).to.be.an('object');
-          expect(err).to.include.keys('error', 'message');
-          done();
-        });
-      });
-    });
-
-    context('missing MySQL database', function (done) {
-
       it('should throw error', function (done) {
-
-        var instance;
 
         expect(function () {
           instance = new Redis2MySql({
@@ -139,13 +108,55 @@ describe('Redis2MySQL', function () {
         done();
       });
 
+      after(function () {
+        if (instance) {
+          instance.quit();
+        }
+      });
+    });
+
+    context('missing username', function () {
+
+      var instance;
+
+      it('should throw an error', function (done) {
+
+        expect(function () {
+          instance = new Redis2MySql({
+              redis: {
+                showFriendlyErrorStack: true
+              },
+              mysql: {
+                database: 'mytest',
+                charset: 'utf8'
+              },
+              custom: {
+                datatypePrefix: {
+                  string: 'str',
+                  list: 'lst',
+                  set: 'set',
+                  sortedSet: 'zset',
+                  hash: 'map'
+                }
+              }
+            }
+          );
+        }).throws(ERRORS.missingUser);
+        done();
+      });
+
+      after(function () {
+        if (instance) {
+          instance.quit();
+        }
+      });
     });
 
     context('missing prefixes', function () {
 
-      it('missing prefixes', function (done) {
+      var instance;
 
-        var instance;
+      it('should throw an error', function (done) {
 
         expect(function () {
           instance = new Redis2MySql({
@@ -168,6 +179,12 @@ describe('Redis2MySQL', function () {
           );
         }).throws(ERRORS.missingPrefix);
         done();
+      });
+
+      after(function () {
+        if (instance) {
+          instance.quit();
+        }
       });
     });
 
@@ -226,38 +243,84 @@ describe('Redis2MySQL', function () {
         }).throws(ERRORS.duplicatePrefix);
         done();
       });
+
+      after(function () {
+        if (instance) {
+          instance.quit();
+        }
+      });
+    });
+
+    context('wrong database', function () {
+
+      var instance;
+
+      it('should emit an error', function (done) {
+        instance = new Redis2MySql({
+            redis: {
+              showFriendlyErrorStack: true
+            },
+            mysql: {
+              user: 'root',
+              database: 'xxxx',
+              charset: 'utf8'
+            },
+            custom: {
+              datatypePrefix: {
+                string: 'str',
+                list: 'lst',
+                set: 'set',
+                sortedSet: 'zset',
+                hash: 'map'
+              }
+            }
+          }
+        );
+
+        instance.on('error', function (err) {
+          expect(err).to.be.an('object');
+          expect(err).to.include.keys('error', 'message');
+          done();
+        });
+      });
+
+      after(function () {
+        if (instance) {
+          instance.quit();
+        }
+      });
     });
   });
   /* End Object Instantiation Test */
 
   /* Method Test */
-  describe('method test', function methodTest() {
+  describe('individual method test', function methodTest() {
 
-    var instance, redisConn, mysqlConn;
+    var instance, extrnRedis, extrnMySql;
 
     before(function () {
       /* connections independent of the object being tested */
-      redisConn = new Redis();
-      redisConn.del('str:email:x', function (err) {
-        if (err) {
-          throw err;
-        } else {
-          console.log('deleted key `str:email:x` ');
-        }
-      });
+      extrnRedis = new Redis();
+      extrnRedis.multi()
+        .del('str:sometype:testkey', 'str:sometype:testincrkey',
+        'str:somenumtype:testcounter')
+        .set('str:sometype:testincrkey', '2')
+        .exec(function (err) {
+          if (err) {
+            throw err;
+          }
+        });
 
-      mysqlConn = mysql.createConnection({
+      extrnMySql = mysql.createConnection({
         user: 'root',
         database: 'mytest',
         charset: 'utf8'
       });
-      mysqlConn.connect();
-      mysqlConn.query('DROP TABLE IF EXISTS `str_email` ',
+      extrnMySql.connect();
+      extrnMySql.query('DROP TABLE IF EXISTS str_sometype, str_somenumtype ',
         function (err) {
           if (err) {
             throw err;
-          } else {
-            console.log('deleted table `str_email` ');
           }
         }
       );
@@ -285,52 +348,119 @@ describe('Redis2MySQL', function () {
       );
     });
 
-    context('Redis `set` function', function () {
-      it('should get receive OK from Redis for str:email:x', function () {
-        instance.set('email', 'x', 'the fox jumped', function (err, result) {
-          expect(result).to.be.equals('OK');
-        });
-      });
-
-      it('should get a value from Redis for str:email:x', function () {
-        redisConn.get('str:email:x', function (err, result) {
-          expect(result).to.be.equals('the fox jumped');
-        });
-      });
-
-      it('should get a value from MySQL table str_email', function () {
-        mysqlConn.query(
-          'SELECT `key` FROM str_email WHERE `key` = ' + mysqlConn.escape('x'),
+    context('#set()', function () {
+      it('should receive OK from Redis for str:sometype:testkey', function (done) {
+        instance.set('sometype', 'testkey', 'the fox jumped',
           function (err, result) {
-            expect(result).to.be.equals('the fox jumped');
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('OK');
+              done();
+            }
           });
+      });
+
+      it('should contain a value from Redis for key `str:sometype:testkey`',
+        function (done) {
+          extrnRedis.get('str:sometype:testkey', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('the fox jumped');
+              done();
+            }
+          });
+        });
+
+      it('should contain a value from MySQL table `str_sometype`',
+        function (done) {
+
+          setTimeout(
+            function () {
+              extrnMySql.query(
+                'SELECT `value` FROM `str_sometype` WHERE `key` = ? ',
+                'testkey',
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result[0].value).to.be.equals('the fox jumped');
+                    done();
+                  }
+                }
+              );
+            }, 400);
+        });
+    });
+
+    context('#incr()', function () {
+      it('should receive a value of 3', function (done) {
+        instance.incr('sometype', 'testincrkey', function (err, result) {
+          if (err) {
+            done(err);
+          } else {
+            expect(result).to.be.equals(3); // converts from string to numeric
+            done();
+          }
+        });
+      });
+
+      it('should contain a value from Redis for `str:sometype:testincrkey`',
+        function (done) {
+          extrnRedis.get('str:sometype:testincrkey', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('3'); // get returns a string
+              done();
+            }
+          });
+        });
+
+      it('should contain a value from MySQL table `str_sometype`', function (done) {
+
+        setTimeout(
+          function () {
+            extrnMySql.query(
+              'SELECT `value` FROM `str_sometype` WHERE `key` = ? ',
+              'testincrkey',
+              function (err, result) {
+                if (err) {
+                  done(err);
+                } else {
+                  expect(result[0].value).to.be.equals('3');
+                  done();
+                }
+              }
+            );
+          }, 400);
       });
     });
 
     after(function () {
       async.series([
         function (cb1) {
-          redisConn.del('str:email:x', function (err) {
-            if (err) {
-              cb1(err);
-            } else {
-              redisConn.quit();
-              console.log('deleted key `str:email:x` ');
-              cb1();
-            }
-          });
+          extrnRedis.del('str:sometype:testkey', 'str:sometype:testincrkey',
+            'str:somenumtype:testcounter', function (err) {
+              if (err) {
+                cb1(err);
+              } else {
+                extrnRedis.quit();
+                cb1();
+              }
+            });
         },
         function (cb2) {
-          mysqlConn.query('DROP TABLE IF EXISTS `str_email` ',
+          extrnMySql.query('DROP TABLE IF EXISTS str_sometype, str_somenumtype ',
             function (err) {
               if (err) {
                 cb2(err);
               } else {
-                mysqlConn.end(function (err) {
+                extrnMySql.end(function (err) {
                   if (err) {
                     cb2(err);
                   } else {
-                    console.log('delete table `str_email` ');
                     cb2();
                   }
                 });
@@ -344,7 +474,9 @@ describe('Redis2MySQL', function () {
         }
       });
 
-      instance.quit();
+      if (instance) {
+        instance.quit();
+      }
     });
   });
   /* End Method Test*/
