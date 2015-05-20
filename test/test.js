@@ -1,320 +1,352 @@
 /*
- * Copyright (c) 2014. LetsBlumIt Corp.
+ * Copyright (c) 2015.
  */
 'use strict';
 
-var Mappy = require('../lib/Redis2MySql'),
-  is = require('is_js'),
-  mappy = new Mappy({
-      redis: {
-        showFriendlyErrorStack: true
-      },
-      mysql: {
+var chai = require('chai'),
+  expect = chai.expect,
+  async = require('async'),
+  Redis2MySql = require('../lib/Redis2MySql'),
+  Redis = require('ioredis'),
+  mysql = require('mysql'),
+  OkPacket = require('../node_modules/mysql/lib/protocol/packets/OkPacket'),
+  ERRORS = {
+    missingPrefix: 'All database table prefixes should be defined by the ' +
+    'user.',
+    duplicatePrefix: 'There are duplicate user-defined database ' +
+    'prefixes. Please make all prefixes unique.',
+    missingDatabase: 'Please specify the database'
+  };
+
+describe('Redis2MySQL', function () {
+
+  /* Object Instantiation Test */
+  describe('object instantiation test', function () {
+
+    context('positive test', function () {
+
+      var instance;
+
+      before(function () {
+        instance = new Redis2MySql({
+            redis: {
+              showFriendlyErrorStack: true
+            },
+            mysql: {
+              user: 'root',
+              database: 'mytest',
+              charset: 'utf8'
+            },
+            custom: {
+              datatypePrefix: {
+                string: 'str',
+                list: 'lst',
+                set: 'set',
+                sortedSet: 'zset',
+                hash: 'map'
+              }
+            }
+          }
+        );
+      });
+
+      it('must create a Redis2MySql instance', function (done) {
+        expect(instance).to.be.an.instanceOf(Redis2MySql);
+        done();
+      });
+
+      it('should possess `redisConn` which will make a connection',
+        function (done) {
+          instance.redisConn.ping(function (err, result) {
+            expect(result).equals('PONG');
+            done();
+          });
+        });
+
+      it('should possess `mysqlConn` which will make a connection',
+        function (done) {
+          instance.mysqlConn.ping(function (err, result) {
+            expect(result).to.be.an.instanceOf(OkPacket);
+            done();
+          });
+        });
+
+      after(function () {
+        instance.quit();
+      });
+    });
+
+    context('wrong database', function () {
+
+      var instance;
+
+      it('should access Redis2MySQL instance', function (done) {
+        instance = new Redis2MySql({
+            redis: {
+              showFriendlyErrorStack: true
+            },
+            mysql: {
+              user: 'root',
+              database: 'xxxx',
+              charset: 'utf8'
+            },
+            custom: {
+              datatypePrefix: {
+                string: 'str',
+                list: 'lst',
+                set: 'set',
+                sortedSet: 'zset',
+                hash: 'map'
+              }
+            }
+          }
+        );
+
+        instance.on('error', function (err) {
+          expect(err).to.be.an('object');
+          expect(err).to.include.keys('error', 'message');
+          done();
+        });
+      });
+    });
+
+    context('missing MySQL database', function (done) {
+
+      it('should throw error', function (done) {
+
+        var instance;
+
+        expect(function () {
+          instance = new Redis2MySql({
+              redis: {
+                showFriendlyErrorStack: true
+              },
+              mysql: {
+                user: 'root'
+              },
+              custom: {
+                datatypePrefix: {
+                  string: 'str',
+                  list: 'lst',
+                  set: 'set',
+                  sortedSet: 'zset',
+                  hash: 'map'
+                }
+              }
+            }
+          );
+        }).throws(ERRORS.missingDatabase);
+        done();
+      });
+
+    });
+
+    context('missing prefixes', function () {
+
+      it('missing prefixes', function (done) {
+
+        var instance;
+
+        expect(function () {
+          instance = new Redis2MySql({
+              redis: {
+                showFriendlyErrorStack: true
+              },
+              mysql: {
+                user: 'root',
+                database: 'mytest',
+                charset: 'utf8'
+              },
+              custom: {
+                datatypePrefix: {
+                  string: 'str',
+                  sortedSet: 'zset',
+                  hash: 'map'
+                }
+              }
+            }
+          );
+        }).throws(ERRORS.missingPrefix);
+        done();
+      });
+    });
+
+    context('duplicate user-defined prefixes', function () {
+
+      var instance;
+
+      it('set and sortedSet values are the same', function (done) {
+        expect(function () {
+          instance = new Redis2MySql({
+              redis: {
+                showFriendlyErrorStack: true
+              },
+              mysql: {
+                user: 'root',
+                database: 'mytest',
+                charset: 'utf8'
+              },
+              custom: {
+                datatypePrefix: {
+                  string: 'str',
+                  list: 'lst',
+                  set: 'set',
+                  sortedSet: 'set',
+                  hash: 'map'
+                }
+              }
+            }
+          );
+        }).throws(ERRORS.duplicatePrefix);
+        done();
+      });
+
+      it('string, set, and hash values are the same', function (done) {
+        expect(function () {
+          instance = new Redis2MySql({
+              redis: {
+                showFriendlyErrorStack: true
+              },
+              mysql: {
+                user: 'root',
+                database: 'mytest',
+                charset: 'utf8'
+              },
+              custom: {
+                datatypePrefix: {
+                  string: 'str',
+                  list: 'lst',
+                  set: 'str',
+                  sortedSet: 'zset',
+                  hash: 'str'
+                }
+              }
+            }
+          );
+        }).throws(ERRORS.duplicatePrefix);
+        done();
+      });
+    });
+  });
+  /* End Object Instantiation Test */
+
+  /* Method Test */
+  describe('method test', function methodTest() {
+
+    var instance, redisConn, mysqlConn;
+
+    before(function () {
+      /* connections independent of the object being tested */
+      redisConn = new Redis();
+      redisConn.del('str:email:x', function (err) {
+        if (err) {
+          throw err;
+        } else {
+          console.log('deleted key `str:email:x` ');
+        }
+      });
+
+      mysqlConn = mysql.createConnection({
         user: 'root',
         database: 'mytest',
         charset: 'utf8'
-      },
-      custom: {
-        schemaName: 'mytest',
-        schema_charset: 'utf8',
-        datatypePrefix: {
-          string: 'str',
-          list: 'lst',
-          set: 'set',
-          sortedSet: 'zset',
-          hash: 'map'
-        }
-      }
-    }
-  );
-
-mappy.createUseSchemaAndExpiry();
-
-mappy.on('error', function (err) {
-  console.log('Error from listener: ' + err.error + ' ' + err.message +
-    ' ' + err.redisKey);
-});
-
-mappy.incr('email', 'd', function (err, result) {
-  if (err) {
-    console.log('Error on INCR: ' + err);
-  } else {
-    console.log('email INCR: ' + result);
-  }
-});
-
-mappy.set('email', ['y', 'zzz@blumr.com'], function (err, result) {
-  if (err) {
-    console.log('Error on SET: ' + err);
-  } else {
-    console.log('email SET: ' + result);
-  }
-});
-
-mappy.get('email', 'd', function (err, result) {
-  if (err) {
-    console.log('Error on GET: ' + err);
-  } else {
-    console.log('x GET finally: ' + result);
-  }
-});
-
-mappy.del(['str:email:a', 'str:email:b', 'map:email'], function (err, result) {
-  if (err) {
-    console.log('Error on DEL ' + err);
-  } else {
-    console.log('DEL result: ' + result);
-  }
-});
-
-mappy.exists('email', 'x', function (err, result) {
-  if (err) {
-    console.log('Error on EXISTS: ' + err);
-  } else {
-    console.log('x EXISTS finally: ' + result);
-  }
-});
-
-mappy.lpush('name', ['one', 'two', 'three', 'four'], function (err, result) {
-  if (err) {
-    console.log('Error on LPUSH: ' + err);
-  } else {
-    console.log('names LPUSH: ' + result);
-  }
-});
-
-mappy.lindex('name', 0, function (err, result) {
-  if (err) {
-    console.log('Error on LINDEX: ' + err);
-  } else {
-    console.log('name LINDEX: ' + result);
-  }
-});
-
-mappy.lset('name', -5, 'VALFIVE', function (err, result) {
-  if (err) {
-    console.log('Error on LSET: ' + err);
-  } else {
-    console.log('name LSET: ' + result);
-  }
-});
-
-mappy.rpop('name', function (err, result) {
-  if (err) {
-    console.log('Error on RPOP: ' + err);
-  } else {
-    console.log('names RPOP: ' + result);
-  }
-});
-
-mappy.sadd('sname', [1, 2, 3, 'a', 'b', 'c'], function (err, result) {
-  if (err) {
-    console.log('Error on SADD: ' + err);
-  } else {
-    console.log('snames SADD: ' + result);
-  }
-});
-
-mappy.srem('sname', [3, 2], function (err, result) {
-  if (err) {
-    console.log('Error on SREM: ' + err);
-  } else {
-    console.log('snames SREM: ' + result);
-  }
-});
-
-mappy.smembers('sname', function (err, result) {
-  if (err) {
-    console.log('Error on SMEMBERS: ' + err);
-  } else if (is.existy(result) && result.length > 0) {
-    for (var i = 0; i < result.length; i++) {
-      console.log('sname SMEMBERS: ' + result[i]);
-    }
-  }
-});
-
-mappy.sismember('sname', 'a', function (err, result) {
-  if (err) {
-    console.log('Error on SISMEMBER: ' + err);
-  } else {
-    console.log('snames SISMEMBER: ' + result);
-  }
-});
-
-mappy.scard('sname', function (err, result) {
-  if (err) {
-    console.log('Error on SCARD: ' + err);
-  } else {
-    console.log('sname SCARD: ' + result);
-  }
-});
-
-mappy.zadd('zname', [4.4, 'four point four',
-  5.5, 'five point five',
-  6.5, 'six point three',
-  7.1, 'seven point one'], function (err, result) {
-  if (err) {
-    console.log('Error on ZADD: ' + err);
-  } else {
-    console.log('sname ZADD: ' + result);
-  }
-});
-
-mappy.zincrby('zname', 1.9, 'one', function (err, result) {
-  if (err) {
-    console.log('Error on ZINCRBY: ' + err);
-  } else {
-    console.log('sname ZINCRBY: ' + result);
-  }
-});
-
-mappy.zscore('zname', 'four point four', function (err, result) {
-  if (err) {
-    console.log('Error on ZSCORE: ' + err);
-  } else {
-    console.log('zname ZSCORE: ' + result);
-  }
-});
-
-mappy.zrank('zname', 'four point four', function (err, result) {
-  if (err) {
-    console.log('Error on ZSCORE: ' + err);
-  } else {
-    console.log('zname ZSCORE: ' + result);
-  }
-});
-
-mappy.zrangebyscore('zname', '-inf', 7, 'withscores', 'limit', 1, 5,
-  function (err, result) {
-    if (err) {
-      console.log('Error on ZRANGEBYSCORE: ' + err);
-    } else {
-      if (is.existy(result) && is.not.empty(result)) {
-        for (var i = 0; i < result.length; i++) {
-          console.log('zname ZRANGEBYSCORE: ' + result[i]);
-        }
-      } else {
-        console.log('zname ZRANGEBYSCORE: ' + result);
-      }
-    }
-  });
-
-mappy.zrevrangebyscore('zname', 'inf', '(4.40', 'withscores', 'limit', 1, 4,
-  function (err, result) {
-    if (err) {
-      console.log('Error on ZREVRANGEBYSCORE: ' + err);
-    } else if (is.existy(result) && is.not.empty(result)) {
-      for (var i = 0; i < result.length; i++) {
-        console.log('zname ZREVRANGEBYSCORE: ' + result[i]);
-      }
-    } else {
-      console.log('zname ZREVRANGEBYSCORE: ' + result);
-    }
-  });
-
-mappy.hset('email', 'b', 'byyGffuts@blumr.com', function (err, result) {
-  if (err) {
-    console.log('Error on HSET: ' + err);
-  } else {
-    console.log('email HSET: ' + result);
-  }
-});
-
-mappy.hmset('email', ['x', 'nuts@blumr.com', 'y', 'go@blumr.com',
-  'z', 'noooo@blumr.com', 'a', 'howzy@blumr.com'], function (err, result) {
-  if (err) {
-    console.log('Error on HSET: ' + err);
-  } else {
-    console.log('email HSET: ' + result);
-  }
-});
-
-mappy.hget('email', 'x', function (err, result) {
-  if (err) {
-    console.log('Error on HGET: ' + err);
-  } else {
-    console.log('x HGET finally: ' + result);
-  }
-});
-
-mappy.hmget('email', ['x', 'y', 'z', 'a'], function (err, result) {
-
-  var i, value;
-  if (err) {
-    console.log('Error on HMGET: ' + err);
-  } else {
-    for (i = 0; i < result.length; i++) {
-      if (typeof result[i] === 'object') {
-        for (value in result[i]) {
-          if (result[i].hasOwnProperty(value)) {
-            console.log('email HGET: ' + result[i][value]);
+      });
+      mysqlConn.connect();
+      mysqlConn.query('DROP TABLE IF EXISTS `str_email` ',
+        function (err) {
+          if (err) {
+            throw err;
+          } else {
+            console.log('deleted table `str_email` ');
           }
         }
-      } else {
-        console.log('email HMGET: ' + result[i]);
-      }
-    }
-  }
-});
+      );
 
-mappy.hgetall('email', function (err, result) {
-
-  var value;
-  if (err) {
-    console.log('Error on HGETALL: ' + err);
-  } else {
-    if (typeof result === 'object') {
-      for (value in result) {
-        if (result.hasOwnProperty(value)) {
-          console.log('email HGETALL: ' + value + ' ' + result[value]);
+      /* actual object being tested */
+      instance = new Redis2MySql({
+          redis: {
+            showFriendlyErrorStack: true
+          },
+          mysql: {
+            user: 'root',
+            database: 'mytest',
+            charset: 'utf8'
+          },
+          custom: {
+            datatypePrefix: {
+              string: 'str',
+              list: 'lst',
+              set: 'set',
+              sortedSet: 'zset',
+              hash: 'map'
+            }
+          }
         }
-      }
-    } else {
-      console.log('email HGETALL: ' + result);
-    }
-  }
-});
-
-mappy.hexists('email', 'x', function (err, result) {
-  if (err) {
-    console.log('Error on HEXISTS: ' + err);
-  } else {
-    console.log('x HEXISTS finally: ' + result);
-  }
-});
-
-mappy.hdel('email', ['aaaa', 'aaax'], function (err, result) {
-  if (err) {
-    console.log('Error on HDEL: ' + err);
-  } else {
-    console.log('email HDEL finally: ' + result);
-  }
-});
-
-mappy.expire('str:email:x', 3000, function (err, result) {
-  if (err) {
-    console.log('Error on EXPIRE: ' + err);
-  } else {
-    console.log('email EXPIRE finally: ' + result);
-  }
-});
-
-mappy.rename('str:email:x', 'str:eml:y', function (err, result) {
-  if (err) {
-    console.log('Error on RENAME: ' + err);
-  } else {
-    console.log('email RENAME finally: ' + result);
-  }
-});
-
-setTimeout(function (err) {
-  if (err) {
-    console.log(err);
-  } else {
-    mappy.quit(function (err) {
-      if (err) {
-        console.log('Error on quit: ' + err);
-      }
+      );
     });
-  }
-}, 3000);
+
+    context('Redis `set` function', function () {
+      it('should get receive OK from Redis for str:email:x', function () {
+        instance.set('email', 'x', 'the fox jumped', function (err, result) {
+          expect(result).to.be.equals('OK');
+        });
+      });
+
+      it('should get a value from Redis for str:email:x', function () {
+        redisConn.get('str:email:x', function (err, result) {
+          expect(result).to.be.equals('the fox jumped');
+        });
+      });
+
+      it('should get a value from MySQL table str_email', function () {
+        mysqlConn.query(
+          'SELECT `key` FROM str_email WHERE `key` = ' + mysqlConn.escape('x'),
+          function (err, result) {
+            expect(result).to.be.equals('the fox jumped');
+          });
+      });
+    });
+
+    after(function () {
+      async.series([
+        function (cb1) {
+          redisConn.del('str:email:x', function (err) {
+            if (err) {
+              cb1(err);
+            } else {
+              redisConn.quit();
+              console.log('deleted key `str:email:x` ');
+              cb1();
+            }
+          });
+        },
+        function (cb2) {
+          mysqlConn.query('DROP TABLE IF EXISTS `str_email` ',
+            function (err) {
+              if (err) {
+                cb2(err);
+              } else {
+                mysqlConn.end(function (err) {
+                  if (err) {
+                    cb2(err);
+                  } else {
+                    console.log('delete table `str_email` ');
+                    cb2();
+                  }
+                });
+              }
+            }
+          );
+        }
+      ], function (err) {
+        if (err) {
+          throw err;
+        }
+      });
+
+      instance.quit();
+    });
+  });
+  /* End Method Test*/
+
+});
