@@ -326,7 +326,7 @@ describe('Redis2MySQL', function () {
   /* End Object Instantiation Test */
 
   /* Method Test */
-  describe('methods test', function methodTest() {
+  describe('method test', function methodTest() {
 
     var instance, extrnRedis, extrnMySql;
 
@@ -1561,6 +1561,207 @@ describe('Redis2MySQL', function () {
       });
     });
 
+    describe('#rpop()', function () {
+      before(function (done) {
+        extrnRedis.multi().time().lpush('lst:some_data',
+          [
+            300,
+            'name1',
+            'name2',
+            '400'
+          ]).exec(function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              extrnMySql.query(
+                'CREATE TABLE IF NOT EXISTS lst_some_data ' +
+                ' (' +
+                COLUMNS.SEQ + ' BIGINT PRIMARY KEY, ' +
+                COLUMNS.VALUE + ' VARCHAR(255), ' +
+                COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                ') ',
+                function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    var time;
+                    if (result[0][1][1].length > 0) { // result from Redis TIME command
+                      /* UNIX time in sec + microseconds */
+                      time = result[0][1][0] + result[0][1][1];
+                    }
+                    extrnMySql.query(
+                      'INSERT INTO lst_some_data (`time_sequence` , `value` ) ' +
+                      'VALUES (?, ?), (?, ?), (?, ?), (?, ?) ',
+                      [
+                        time,
+                        300,
+                        time + 1,
+                        'name1',
+                        time + 2,
+                        'name2',
+                        time + 3,
+                        '400'
+                      ],
+                      function (err) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should remove the innermost (oldest) item inserted in a ' +
+        'stack and return that value', function (done) {
+        async.series([
+            function (firstCb) {
+              instance.rpop('some_data', function (err, result) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  expect(result).to.be.equals('300');
+                  firstCb();
+                }
+              });
+            },
+            function (secondCb) {
+              setTimeout(
+                function () {
+                  extrnMySql.query(
+                    'SELECT COUNT(1) AS cnt ' +
+                    'FROM lst_some_data ' +
+                    'WHERE value = ?',
+                    '300',
+                    function (err, result) {
+                      if (err) {
+                        secondCb(err);
+                      } else {
+                        expect(result[0].cnt).to.be.equals(0);
+                        secondCb();
+                      }
+                    });
+                }, 400);
+            },
+            function (thirdCb) {
+              instance.rpop('some_data', function (err, result) {
+                if (err) {
+                  thirdCb(err);
+                } else {
+                  expect(result).to.be.equals('name1');
+                  thirdCb();
+                }
+              });
+            },
+            function (fourthCb) {
+              setTimeout(
+                function () {
+                  extrnMySql.query(
+                    'SELECT COUNT(1) AS cnt ' +
+                    'FROM lst_some_data ' +
+                    'WHERE value = ?',
+                    'name1',
+                    function (err, result) {
+                      if (err) {
+                        fourthCb(err);
+                      } else {
+                        expect(result[0].cnt).to.be.equals(0);
+                        fourthCb();
+                      }
+                    });
+                }, 400);
+            },
+            function (fifthCb) {
+              instance.rpop('some_data', function (err, result) {
+                if (err) {
+                  fifthCb(err);
+                } else {
+                  expect(result).to.be.equals('name2');
+                  fifthCb();
+                }
+              });
+            },
+            function (sixthCb) {
+              setTimeout(
+                function () {
+                  extrnMySql.query(
+                    'SELECT COUNT(1) AS cnt ' +
+                    'FROM lst_some_data ' +
+                    'WHERE value = ?',
+                    'name2',
+                    function (err, result) {
+                      if (err) {
+                        sixthCb(err);
+                      } else {
+                        expect(result[0].cnt).to.be.equals(0);
+                        sixthCb();
+                      }
+                    });
+                }, 400);
+            },
+            function (seventhCb) {
+              instance.rpop('some_data', function (err, result) {
+                if (err) {
+                  seventhCb(err);
+                } else {
+                  expect(result).to.be.equals('400');
+                  seventhCb();
+                }
+              });
+            },
+            function (eighthCb) {
+              setTimeout(
+                function () {
+                  extrnMySql.query(
+                    'SELECT COUNT(1) AS cnt ' +
+                    'FROM lst_some_data ' +
+                    'WHERE value = ?',
+                    '400',
+                    function (err, result) {
+                      if (err) {
+                        eighthCb(err);
+                      } else {
+                        expect(result[0].cnt).to.be.equals(0);
+                        eighthCb();
+                      }
+                    });
+                }, 400);
+            },
+            function (ninthCb) {
+              instance.rpop('some_data', function (err, result) {
+                if (err) {
+                  ninthCb(err);
+                } else {
+                  expect(result).to.be.equals(null);
+                  ninthCb();
+                }
+              });
+            }
+          ],
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              done();
+            }
+          });
+      });
+
+      after(function (done) {
+        _deleteData(['lst:some_data'], ['lst_some_data'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
     function _deleteData(keys, tables, callback) {
       async.series([
         function (firstCb) {
@@ -1648,4 +1849,5 @@ describe('Redis2MySQL', function () {
   });
   /* End Method Test*/
 
-});
+})
+;
