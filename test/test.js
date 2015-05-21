@@ -305,22 +305,34 @@ describe('Redis2MySQL', function () {
   /* End Object Instantiation Test */
 
   /* Method Test */
-  describe('individual method test', function methodTest() {
+  describe('methods test', function methodTest() {
 
     var instance, extrnRedis, extrnMySql;
 
     before(function () {
       /* connections independent of the object being tested */
+      var keys = [
+          'str:sometype:testkey',
+          'str:sometype:testincrkey',
+          'str:somenumtype:testcounter',
+          'str:sometype:xx',
+          'str:sometype:yyy',
+          'set:somenumber',
+          'map:somename'
+        ],
+        tables = [
+          'str_sometype',
+          'str_somenumtype',
+          'set_somenumber',
+          'map_somename'
+        ];
+
       extrnRedis = new Redis();
-      extrnRedis.multi()
-        .del('str:sometype:testkey', 'str:sometype:testincrkey',
-        'str:somenumtype:testcounter')
-        .set('str:sometype:testincrkey', '2')
-        .exec(function (err) {
-          if (err) {
-            throw err;
-          }
-        });
+      extrnRedis.del(keys, function (err) {
+        if (err) {
+          throw err;
+        }
+      });
 
       extrnMySql = mysql.createConnection({
         user: 'root',
@@ -328,7 +340,8 @@ describe('Redis2MySQL', function () {
         charset: 'utf8'
       });
       extrnMySql.connect();
-      extrnMySql.query('DROP TABLE IF EXISTS str_sometype, str_somenumtype ',
+      extrnMySql.query('DROP TABLE IF EXISTS ??, ??, ??, ??',
+        tables,
         function (err) {
           if (err) {
             throw err;
@@ -359,73 +372,15 @@ describe('Redis2MySQL', function () {
       );
     });
 
-    context('#set()', function () {
-      it('should set the key `str:sometype:testkey`, return `OK`, and insert ' +
-        'in MySQL the value of `the fox jumped`; then replace the value with ' +
-        '`the wolf smiled`', function (done) {
-        instance.set('sometype', 'testkey', 'the fox jumped',
-          function (err, result) {
-            if (err) {
-              done(err);
-            } else {
-              expect(result).to.be.equals('OK');
-              extrnRedis.get('str:sometype:testkey', function (err, result) {
-                if (err) {
-                  done(err);
-                } else {
-                  expect(result).to.be.equals('the fox jumped');
-                  setTimeout(function () {
-                    extrnMySql.query(
-                      'SELECT `value` FROM `str_sometype` WHERE `key` = ? ',
-                      'testkey',
-                      function (err, result) {
-                        if (err) {
-                          done(err);
-                        } else {
-                          expect(result[0].value).to.be.equals('the fox jumped');
-                          instance.set('sometype', 'testkey', 'the wolf smiled',
-                            function (err, result) {
-                              if (err) {
-                                done(err);
-                              } else {
-                                expect(result).to.be.equals('OK');
-                                extrnRedis.get('str:sometype:testkey',
-                                  function (err, result) {
-                                    if (err) {
-                                      done(err);
-                                    } else {
-                                      expect(result).to.be
-                                        .equals('the wolf smiled');
-                                      setTimeout(function () {
-                                        extrnMySql.query(
-                                          'SELECT `value` FROM `str_sometype` ' +
-                                          'WHERE `key` = ? ',
-                                          'testkey',
-                                          function (err, result) {
-                                            if (err) {
-                                              done(err);
-                                            } else {
-                                              expect(result[0].value).to.be
-                                                .equals('the wolf smiled');
-                                              done();
-                                            }
-                                          });
-                                      }, 400);
-                                    }
-                                  });
-                              }
-                            });
-                        }
-                      });
-                  }, 400);
-                }
-              });
-            }
-          });
+    describe('#incr()', function () {
+      before(function () {
+        extrnRedis.set('str:sometype:testincrkey', '2', function (err) {
+          if (err) {
+            throw err;
+          }
+        });
       });
-    });
 
-    context('#incr()', function () {
       it('should increment existing key `testincrkey`, return 3, and insert ' +
         'in MySQL the value of 3',
         function (done) {
@@ -493,10 +448,118 @@ describe('Redis2MySQL', function () {
             }
           });
         });
+
+      after(function () {
+        async.series([
+          function (firstCb) {
+            var keys = [
+              'str:sometype:testincrkey',
+              'str:sometype:testcounter'
+            ];
+            extrnRedis.del(keys, function (err) {
+              if (err) {
+                firstCb(err);
+              } else {
+                firstCb();
+              }
+            });
+          },
+          function (secondCb) {
+            var tables = [
+              'str_sometype'
+            ];
+            extrnMySql.query('DROP TABLE IF EXISTS ?? ',
+              tables,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            throw(err);
+          }
+        });
+      });
     });
 
-    context.only('#get()', function () {
-      beforeEach(function (done) {
+    describe('#set()', function () {
+      it('should set the key `str:sometype:testkey`, return `OK`, and insert ' +
+        'in MySQL the value of `the fox jumped`; then replace the value with ' +
+        '`the wolf smiled`', function (done) {
+        instance.set('sometype', 'testkey', 'the fox jumped',
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('OK');
+
+              extrnRedis.get('str:sometype:testkey', function (err, result) {
+                if (err) {
+                  done(err);
+                } else {
+                  expect(result).to.be.equals('the fox jumped');
+
+                  setTimeout(function () {
+                    extrnMySql.query(
+                      'SELECT `value` FROM `str_sometype` WHERE `key` = ? ',
+                      'testkey',
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result[0].value).to.be.equals('the fox jumped');
+
+                          instance.set('sometype', 'testkey', 'the wolf smiled',
+                            function (err, result) {
+                              if (err) {
+                                done(err);
+                              } else {
+                                expect(result).to.be.equals('OK');
+
+                                extrnRedis.get('str:sometype:testkey',
+                                  function (err, result) {
+                                    if (err) {
+                                      done(err);
+                                    } else {
+                                      expect(result).to.be
+                                        .equals('the wolf smiled');
+
+                                      setTimeout(function () {
+                                        extrnMySql.query(
+                                          'SELECT `value` FROM `str_sometype` ' +
+                                          'WHERE `key` = ? ',
+                                          'testkey',
+                                          function (err, result) {
+                                            if (err) {
+                                              done(err);
+                                            } else {
+                                              expect(result[0].value).to.be
+                                                .equals('the wolf smiled');
+                                              done();
+                                            }
+                                          });
+                                      }, 400);
+                                    }
+                                  });
+                              }
+                            });
+                        }
+                      });
+                  }, 400);
+                }
+              });
+            }
+          });
+      });
+    });
+
+    describe('#get()', function () {
+      before(function () {
         async.series([
           function (firstCb) {
             extrnRedis.set('str:sometype:xx', 'this is a value',
@@ -541,6 +604,175 @@ describe('Redis2MySQL', function () {
           }
         ], function (err) {
           if (err) {
+            throw err;
+          }
+        });
+      });
+
+      it('should get the value of the key `str:sometype:xx`',
+        function (done) {
+          instance.get('sometype', 'xx', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('this is a value');
+              extrnRedis.del('str:sometype:xx', function (err) {
+                if (err) {
+                  throw err;
+                } else {
+                  instance.get('sometype', 'xx', function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result).to.be.equals('this is a value');
+                      done();
+                    }
+                  });
+                }
+              });
+            }
+          });
+        });
+
+      after(function () {
+        async.series([
+          function (firstCb) {
+            var keys = [
+              'str:sometype:xx'
+            ];
+            extrnRedis.del(keys, function (err) {
+              if (err) {
+                firstCb(err);
+              } else {
+                firstCb();
+              }
+            });
+          },
+          function (secondCb) {
+            var tables = [
+              'str_sometype'
+            ];
+            extrnMySql.query('DROP TABLE IF EXISTS ??',
+              tables,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            throw err;
+          }
+        });
+      });
+    });
+
+    describe('#exists()', function () {
+      before(function (done) {
+        async.series([
+          function (firstCb) {
+            extrnRedis.set('str:sometype:yyy', 3003,
+              function (err) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  firstCb();
+                }
+              });
+          },
+          function (secondCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS str_sometype ' +
+              '(' +
+              '`key` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              });
+          }, function (thirdCb) {
+            extrnMySql.query(
+              'INSERT INTO str_sometype (`key` , value ) VALUES (?, ?) ' +
+              'ON DUPLICATE KEY UPDATE `key` = ?, value = ? ',
+              [
+                'yyy',
+                3003,
+                'yyy',
+                3003
+              ],
+              function (err) {
+                if (err) {
+                  thirdCb(err);
+                } else {
+                  thirdCb();
+                }
+              });
+          }, function (fourthCb) {
+            extrnRedis.sadd('set:somenumber', 4003,
+              function (err) {
+                if (err) {
+                  fourthCb(err);
+                } else {
+                  fourthCb();
+                }
+              });
+          }, function (fifthCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS set_somenumber ' +
+              '(' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  fifthCb(err);
+                } else {
+                  fifthCb();
+                }
+              });
+          }, function (sixthCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO set_somenumber (`member`) VALUES (?)',
+              [
+                5003
+              ],
+              function (err) {
+                if (err) {
+                  sixthCb(err);
+                } else {
+                  sixthCb();
+                }
+              });
+          }, function (seventhCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS map_somename ' +
+              '(' +
+              '`field` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  seventhCb(err);
+                } else {
+                  seventhCb();
+                }
+              });
+          }
+        ], function (err) {
+          if (err) {
             done(err);
           } else {
             done();
@@ -548,53 +780,143 @@ describe('Redis2MySQL', function () {
         });
       });
 
-      it('should get the value of the key `str:sometype:xx` from Redis',
+      it('should return 1 for key `str:sometype:yyy`',
         function (done) {
-          instance.get('sometype', 'xx', function (err, result) {
+          instance.exists('str:sometype:yyy', function (err, result) {
             if (err) {
               done(err);
             } else {
-              expect(result).to.be.equals('this is a value');
-              done();
-            }
-          });
-        });
-
-      it('should get the value of the key `str:sometype:xx` from MySQL ' +
-        'when the key does not exist in Redis',
-        function (done) {
-          extrnRedis.del('str:sometype:xx', function (err) {
-            if (err) {
-              throw err;
-            } else {
-              instance.get('sometype', 'xx', function (err, result) {
+              expect(result).to.be.equals(1);
+              extrnRedis.del('str:sometype:yyy', function (err) {
                 if (err) {
                   done(err);
                 } else {
-                  expect(result).to.be.equals('this is a value');
-                  done();
+                  instance.exists('str:sometype:yyy', function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result).to.be.equals(1);
+                      done();
+                    }
+                  });
                 }
               });
             }
           });
         });
+
+      it('should return 1 for key `set:somenumber`',
+        function (done) {
+          instance.exists('set:somenumber', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(1);
+              extrnRedis.del('set:somenumber', function (err) {
+                if (err) {
+                  done(err);
+                } else {
+                  instance.exists('set:somenumber', function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result).to.be.equals(1);
+                      done();
+                    }
+                  });
+                }
+              });
+            }
+          });
+        });
+
+      it('should return 0 for key `map:somename`',
+        function (done) {
+          instance.exists('map:somename', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(0);
+              done();
+            }
+          });
+        });
+
+      after(function (done) {
+        async.series([
+          function (firstCb) {
+            var keys = [
+              'str:sometype:yyy',
+              'set:somenumber',
+              'map:somename'
+            ];
+            extrnRedis.del(keys, function (err) {
+              if (err) {
+                firstCb(err);
+              } else {
+                firstCb();
+              }
+            });
+          },
+          function (secondCb) {
+            var tables = [
+              'str_sometype',
+              'set_somenumber',
+              'map_somename'
+            ];
+            extrnMySql.query('DROP TABLE IF EXISTS ??, ??, ??',
+              tables,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
     });
+
+    
 
     after(function () {
       async.series([
         function (cb1) {
-          extrnRedis.del('str:sometype:testkey', 'str:sometype:testincrkey',
-            'str:somenumtype:testcounter', 'str:sometype:xx', function (err) {
-              if (err) {
-                cb1(err);
-              } else {
-                extrnRedis.quit();
-                cb1();
-              }
-            });
+          var keys = [
+            'str:sometype:testkey',
+            'str:sometype:testincrkey',
+            'str:somenumtype:testcounter',
+            'str:sometype:xx',
+            'str:sometype:yyy',
+            'set:somenumber',
+            'map:somename'
+          ];
+          extrnRedis.del(keys, function (err) {
+            if (err) {
+              cb1(err);
+            } else {
+              extrnRedis.quit();
+              cb1();
+            }
+          });
         },
         function (cb2) {
-          extrnMySql.query('DROP TABLE IF EXISTS str_sometype, str_somenumtype ',
+          var tables = [
+            'str_sometype',
+            'str_somenumtype',
+            'set_somenumber',
+            'map_somename'
+          ];
+          extrnMySql.query('DROP TABLE IF EXISTS ??, ??, ??, ??',
+            tables,
             function (err) {
               if (err) {
                 cb2(err);
