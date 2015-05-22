@@ -5,6 +5,7 @@
 
 var chai = require('chai'),
   expect = chai.expect,
+  is = require('is_js'),
   async = require('async'),
   Redis2MySql = require('../lib/Redis2MySql'),
   Redis = require('ioredis'),
@@ -40,18 +41,63 @@ var chai = require('chai'),
     'str:somenumtype:testcounter',
     'lst:some_data',
     'set:somenumber',
+    'set:some_data',
     'map:somename'
   ],
-  testTables = [
-    'str_sometype',
-    'str_some_new_type',
-    'str_somenumtype',
-    'lst_some_data',
-    'set_somenumber',
-    'map_somename'
-  ];
+  connection = {
+    mysql: {
+      user: 'root',
+      database: 'mytestxxx',
+      charset: 'utf8'
+    }
+  };
 
 describe('Redis2MySQL', function () {
+
+  var extrnRedis, extrnMySql;
+
+  /* Database and Connection Setup */
+  before(function (done) {
+    /* connections independent of the object being tested */
+    async.series([
+      function (firstCb) {
+        extrnRedis = new Redis();
+        extrnRedis.del(testKeys, function (err) {
+          if (err) {
+            firstCb(err);
+          } else {
+            firstCb();
+          }
+        });
+      },
+      function (secondCb) {
+        extrnMySql = mysql.createConnection({
+          user: connection.mysql.user,
+          multipleStatements: 'true'
+        });
+        extrnMySql.connect();
+        extrnMySql.query(
+          'DROP DATABASE IF EXISTS mytestxxx; ' +
+          'CREATE DATABASE IF NOT EXISTS mytestxxx CHARACTER SET = ?; ' +
+          'USE mytestxxx; ',
+          'utf8',
+          function (err) {
+            if (err) {
+              secondCb(err);
+            } else {
+              secondCb();
+            }
+          });
+      }
+    ], function (err) {
+      if (err) {
+        done(err);
+      } else {
+        done();
+      }
+    });
+  });
+  /* End Database and Connection Setup */
 
   /* Object Instantiation Test */
   describe('object instantiation test', function () {
@@ -67,8 +113,8 @@ describe('Redis2MySQL', function () {
             },
             mysql: {
               user: 'root',
-              database: 'mytest',
-              charset: 'utf8'
+              database: connection.mysql.database,
+              charset: connection.mysql.charset
             },
             custom: {
               datatypePrefix: {
@@ -123,7 +169,7 @@ describe('Redis2MySQL', function () {
                 showFriendlyErrorStack: true
               },
               mysql: {
-                user: 'root'
+                user: connection.mysql.user
               },
               custom: {
                 datatypePrefix: {
@@ -159,8 +205,8 @@ describe('Redis2MySQL', function () {
                 showFriendlyErrorStack: true
               },
               mysql: {
-                database: 'mytest',
-                charset: 'utf8'
+                database: connection.mysql.database,
+                charset: connection.mysql.charset
               },
               custom: {
                 datatypePrefix: {
@@ -196,9 +242,9 @@ describe('Redis2MySQL', function () {
                 showFriendlyErrorStack: true
               },
               mysql: {
-                user: 'root',
-                database: 'mytest',
-                charset: 'utf8'
+                user: connection.mysql.user,
+                database: connection.mysql.database,
+                charset: connection.mysql.charset
               },
               custom: {
                 datatypePrefix: {
@@ -231,9 +277,9 @@ describe('Redis2MySQL', function () {
                 showFriendlyErrorStack: true
               },
               mysql: {
-                user: 'root',
-                database: 'mytest',
-                charset: 'utf8'
+                user: connection.mysql.user,
+                database: connection.mysql.database,
+                charset: connection.mysql.charset
               },
               custom: {
                 datatypePrefix: {
@@ -293,9 +339,9 @@ describe('Redis2MySQL', function () {
               showFriendlyErrorStack: true
             },
             mysql: {
-              user: 'root',
-              database: 'xxxx',
-              charset: 'utf8'
+              user: connection.mysql.user,
+              database: 'je_ne_sais_quoi',
+              charset: connection.mysql.charset
             },
             custom: {
               datatypePrefix: {
@@ -328,41 +374,18 @@ describe('Redis2MySQL', function () {
   /* Method Test */
   describe('method test', function methodTest() {
 
-    var instance, extrnRedis, extrnMySql;
+    var instance;
 
     before(function (done) {
-      /* connections independent of the object being tested */
-      extrnRedis = new Redis();
-      extrnRedis.del(testKeys, function (err) {
-        if (err) {
-          throw err;
-        }
-      });
-
-      extrnMySql = mysql.createConnection({
-        user: 'root',
-        database: 'mytest',
-        charset: 'utf8'
-      });
-      extrnMySql.connect();
-      extrnMySql.query('DROP TABLE IF EXISTS ??, ??, ??, ??',
-        testTables,
-        function (err) {
-          if (err) {
-            done(err);
-          }
-        }
-      );
-
       /* actual object being tested */
       instance = new Redis2MySql({
           redis: {
             showFriendlyErrorStack: true
           },
           mysql: {
-            user: 'root',
-            database: 'mytest',
-            charset: 'utf8'
+            user: connection.mysql.user,
+            database: connection.mysql.database,
+            charset: connection.mysql.charset
           },
           custom: {
             datatypePrefix: {
@@ -503,6 +526,16 @@ describe('Redis2MySQL', function () {
     });
 
     describe('#set()', function () {
+      before(function (done) {
+        _deleteData(['str:sometype:testkey'], ['str_sometype'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
       it('should set the key `str:sometype:testkey`, return `OK`, and insert ' +
         'in MySQL the value of `the fox jumped`; then replace the value with ' +
         '`the wolf smiled`', function (done) {
@@ -570,6 +603,16 @@ describe('Redis2MySQL', function () {
               });
             }
           });
+      });
+
+      after(function (done) {
+        _deleteData(['str:sometype:testkey'], ['str_sometype'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
       });
     });
 
@@ -1762,6 +1805,59 @@ describe('Redis2MySQL', function () {
       });
     });
 
+    describe('#sadd()', function () {
+      it('should add the specified values in a set in Redis and MySQL ',
+        function (done) {
+          instance.sadd('some_data', ['hello', 1000, 'world', 2000],
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.equals(4);
+                extrnRedis.smembers('set:some_data', function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).contains('hello').and.contains('1000')
+                      .and.contains('world').and.contains('2000');
+                    setTimeout(
+                      function () {
+                        extrnMySql.query(
+                          'SELECT COUNT(1) AS cnt FROM set_some_data ' +
+                          'WHERE member IN (?, ?, ?, ?) ',
+                          [
+                            'hello',
+                            1000,
+                            'world',
+                            2000
+                          ],
+                          function (err, result) {
+                            if (err) {
+                              done(err);
+                            } else {
+                              expect(result[0].cnt).to.be.equals(4);
+                              done();
+                            }
+                          }
+                        );
+                      }, 400);
+                  }
+                });
+              }
+            });
+        });
+
+      after(function (done) {
+        _deleteData(['set:some_data'], ['set_some_data'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
     function _deleteData(keys, tables, callback) {
       async.series([
         function (firstCb) {
@@ -1774,26 +1870,30 @@ describe('Redis2MySQL', function () {
           });
         },
         function (secondCb) {
+          if (is.existy(tables)) {
+            var sqlParams = '', i;
 
-          var sqlParams = '', i;
-
-          for (i = 0; i < tables.length; i++) {
-            sqlParams += '??, ';
-          }
-          if (sqlParams.length > 0) {
-            sqlParams = sqlParams.substring(0, sqlParams.length - ', '.length);
-          }
-
-          extrnMySql.query('DROP TABLE IF EXISTS ' + sqlParams,
-            tables,
-            function (err) {
-              if (err) {
-                secondCb(err);
-              } else {
-                secondCb();
-              }
+            for (i = 0; i < tables.length; i++) {
+              sqlParams += '??, ';
             }
-          );
+
+            if (sqlParams.length > 0) {
+              sqlParams = sqlParams.substring(0, sqlParams.length - ', '.length);
+            }
+
+            extrnMySql.query('DROP TABLE IF EXISTS ' + sqlParams,
+              tables,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          } else {
+            secondCb();
+          }
         }
       ], function (err) {
         if (err) {
@@ -1805,49 +1905,62 @@ describe('Redis2MySQL', function () {
     }
 
     after(function (done) {
-      async.series([
-        function (firstCb) {
-          extrnRedis.del(testKeys, function (err) {
-            if (err) {
-              firstCb(err);
-            } else {
-              extrnRedis.quit();
-              firstCb();
-            }
-          });
-        },
-        function (secondCb) {
-          extrnMySql.query('DROP TABLE IF EXISTS ??, ??, ??, ??',
-            testTables,
-            function (err) {
-              if (err) {
-                secondCb(err);
-              } else {
-                extrnMySql.end(function (err) {
-                  if (err) {
-                    secondCb(err);
-                  } else {
-                    secondCb();
-                  }
-                });
-              }
-            }
-          );
-        }
-      ], function (err) {
+      _deleteData([testKeys], null, function (err) {
         if (err) {
           done(err);
         } else {
+          if (instance) {
+            instance.quit();
+          }
           done();
         }
       });
-
-      if (instance) {
-        instance.quit();
-      }
     });
   });
   /* End Method Test*/
 
-})
-;
+  /* Database and Connection Teardown */
+  after(function (done) {
+    async.series([
+      function (firstCb) {
+        if (is.existy(extrnRedis)) {
+          extrnRedis.quit();
+          firstCb();
+        } else {
+          firstCb();
+        }
+      },
+      function (secondCb) {
+        extrnMySql.query(
+          'DROP DATABASE IF EXISTS mytestxxx; ',
+          function (err) {
+            if (err) {
+              secondCb(err);
+            } else {
+              secondCb();
+            }
+          });
+      },
+      function (thirdCb) {
+        if (is.existy(extrnMySql)) {
+          extrnMySql.end(function (err) {
+            if (err) {
+              thirdCb(err);
+            } else {
+              thirdCb();
+            }
+          });
+        } else {
+          thirdCb();
+        }
+      }
+    ], function (err) {
+      if (err) {
+        done(err);
+      } else {
+        done();
+      }
+    });
+  });
+  /* End Database and Connection Teardown */
+});
