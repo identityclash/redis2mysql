@@ -1805,10 +1805,11 @@ describe('Redis2MySQL', function () {
       });
     });
 
-    describe('#sadd()', function () {
+    describe.only('#sadd()', function () {
       it('should add the specified values in a set in Redis and MySQL ',
         function (done) {
-          instance.sadd('some_data', ['hello', 1000, 'world', 2000],
+          instance.sadd('some_data',
+            ['hello', 1000, 'world', 2000],
             function (err, result) {
               if (err) {
                 done(err);
@@ -1836,7 +1837,52 @@ describe('Redis2MySQL', function () {
                               done(err);
                             } else {
                               expect(result[0].cnt).to.be.equals(4);
-                              done();
+                              instance.sadd('some_data',
+                                ['hello', 'new_world'],
+                                function (err, result) {
+                                  if (err) {
+                                    done(err);
+                                  } else {
+                                    expect(result).to.be.equals(1);
+                                    extrnRedis.smembers('set:some_data',
+                                      function (err, result) {
+                                        if (err) {
+                                          done(err);
+                                        } else {
+                                          expect(result).contains('hello')
+                                            .and.contains('1000')
+                                            .and.contains('world')
+                                            .and.contains('2000')
+                                            .and.contains('new_world');
+                                          setTimeout(
+                                            function () {
+                                              extrnMySql.query(
+                                                'SELECT COUNT(1) AS cnt ' +
+                                                'FROM set_some_data ' +
+                                                'WHERE member IN (?, ?, ?, ?, ?) ',
+                                                [
+                                                  'hello',
+                                                  1000,
+                                                  'world',
+                                                  2000,
+                                                  'new_world'
+                                                ],
+                                                function (err, result) {
+                                                  if (err) {
+                                                    done(err);
+                                                  } else {
+                                                    /* no duplicates */
+                                                    expect(result[0].cnt)
+                                                      .to.be.equals(5);
+                                                    done();
+                                                  }
+                                                }
+                                              );
+                                            }, 400);
+                                        }
+                                      });
+                                  }
+                                });
                             }
                           }
                         );
@@ -2278,6 +2324,48 @@ describe('Redis2MySQL', function () {
 
       after(function (done) {
         _deleteData(['set:some_data'], ['set_some_data'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe.only('#zadd()', function () {
+
+      it('should add the elements into the database for sorted set ' +
+        'in Redis and MySQL', function (done) {
+        instance.zadd('ssgrades',
+          [
+            98.75, 'myra',
+            70.00, 'sal',
+            81.50, 'john',
+            81.50, 'krull',
+            75.00, 'ren'
+          ],
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(5);
+              extrnRedis.zrangebyscore('zset:ssgrades', 0, 100,
+                {withscores:true},
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.be.equals(true);
+                    done();
+                  }
+                });
+            }
+          });
+      });
+
+      after(function (done) {
+        _deleteData(['zset:ssgrades'], ['zset_ssgrades'], function (err) {
           if (err) {
             done(err);
           } else {
