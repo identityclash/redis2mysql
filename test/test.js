@@ -1858,6 +1858,435 @@ describe('Redis2MySQL', function () {
       });
     });
 
+    describe('#srem()', function () {
+      before(function (done) {
+        extrnRedis.sadd('set:some_data',
+          [
+            'matthew',
+            'mark',
+            20,
+            'luke',
+            60
+          ],
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              extrnMySql.query(
+                'CREATE TABLE IF NOT EXISTS set_some_data ' +
+                '(' +
+                COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+                COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                ') ',
+                function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    extrnMySql.query(
+                      'INSERT INTO set_some_data (member) ' +
+                      'VALUES (?), (?), (?), (?), (?)',
+                      [
+                        'matthew',
+                        'mark',
+                        20,
+                        'luke',
+                        60
+                      ],
+                      function (err) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to remove specified items from Redis and MySQL',
+        function (done) {
+          instance.srem('some_data', ['mark', 'luke', 60, 808],
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.equals(3);
+                extrnRedis.smembers('set:some_data', function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).contains('20').and.contains('matthew');
+                    extrnMySql.query(
+                      'SELECT member ' +
+                      'FROM set_some_data ',
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          var members = [], i;
+                          for (i = 0; i < result.length; i++) {
+                            members.push(result[i].member);
+                          }
+                          expect(members).contains('matthew')
+                            .and.contains('20');
+                          done();
+                        }
+                      });
+                  }
+                });
+              }
+            });
+        });
+
+      after(function (done) {
+        _deleteData(['set:some_data'], ['set_some_data'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#smembers()', function () {
+      before(function (done) {
+        extrnRedis.sadd('set:some_data',
+          [
+            'matthew',
+            'mark',
+            20,
+            'luke',
+            60
+          ],
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              extrnMySql.query(
+                'CREATE TABLE IF NOT EXISTS set_some_data ' +
+                '(' +
+                COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+                COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                ') ',
+                function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    extrnMySql.query(
+                      'INSERT INTO set_some_data (member) ' +
+                      'VALUES (?), (?), (?), (?), (?)',
+                      [
+                        'matthew',
+                        'mark',
+                        20,
+                        'luke',
+                        60
+                      ],
+                      function (err) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should get all the members from both Redis and MySQL',
+        function (done) {
+          instance.smembers('some_data', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).contains('matthew').and.contains('20')
+                .and.contains('mark').and.contains('luke').and.contains('60');
+              extrnRedis.del('set:some_data', function (err) {
+                if (err) {
+                  done(err);
+                } else {
+                  instance.smembers('some_data', function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result).contains('matthew').and.contains('20')
+                        .and.contains('mark').and.contains('luke')
+                        .and.contains('60');
+                      done();
+                    }
+                  });
+                }
+              });
+            }
+          });
+        });
+
+      after(function (done) {
+        _deleteData(['set:some_data'], ['set_some_data'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#sismember()', function () {
+      before(function (done) {
+        extrnRedis.sadd('set:some_data',
+          [
+            'matthew',
+            'mark',
+            20,
+            'luke',
+            60
+          ],
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              extrnMySql.query(
+                'CREATE TABLE IF NOT EXISTS set_some_data ' +
+                '(' +
+                COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+                COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                ') ',
+                function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    extrnMySql.query(
+                      'INSERT INTO set_some_data (member) ' +
+                      'VALUES (?), (?), (?), (?), (?)',
+                      [
+                        'matthew',
+                        'mark',
+                        20,
+                        'luke',
+                        60
+                      ],
+                      function (err) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should determine whether an item is a member by checking ' +
+        'from Redis or MySQL', function (done) {
+        async.parallel([
+          function (callback) {
+            instance.sismember('some_data', 'mark', function (err, result) {
+              if (err) {
+                callback(err);
+              } else {
+                expect(result).to.be.equals(1);
+                callback();
+              }
+            });
+          },
+          function (callback) {
+            instance.sismember('some_data', '20', function (err, result) {
+              if (err) {
+                callback(err);
+              } else {
+                expect(result).to.be.equals(1);
+                callback();
+              }
+            });
+          },
+          function (callback) {
+            instance.sismember('some_data', 'luke', function (err, result) {
+              if (err) {
+                callback(err);
+              } else {
+                expect(result).to.be.equals(1);
+                callback();
+              }
+            });
+          },
+          function (callback) {
+            instance.sismember('some_data', 'hello_w', function (err, result) {
+              if (err) {
+                callback(err);
+              } else {
+                expect(result).to.be.equals(0);
+                callback();
+              }
+            });
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            extrnRedis.del('set:some_data', function (err) {
+              if (err) {
+                done(err);
+              } else {
+                async.parallel([
+                  function (callback) {
+                    instance.sismember('some_data', 'mark', function (err, result) {
+                      if (err) {
+                        callback(err);
+                      } else {
+                        expect(result).to.be.equals(1);
+                        callback();
+                      }
+                    });
+                  },
+                  function (callback) {
+                    instance.sismember('some_data', '20', function (err, result) {
+                      if (err) {
+                        callback(err);
+                      } else {
+                        expect(result).to.be.equals(1);
+                        callback();
+                      }
+                    });
+                  },
+                  function (callback) {
+                    instance.sismember('some_data', 'luke', function (err, result) {
+                      if (err) {
+                        callback(err);
+                      } else {
+                        expect(result).to.be.equals(1);
+                        callback();
+                      }
+                    });
+                  },
+                  function (callback) {
+                    instance.sismember('some_data', 'hello_w', function (err, result) {
+                      if (err) {
+                        callback(err);
+                      } else {
+                        expect(result).to.be.equals(0);
+                        callback();
+                      }
+                    });
+                  }
+                ], function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    done();
+                  }
+                });
+              }
+            });
+          }
+        });
+      });
+
+      after(function (done) {
+        _deleteData(['set:some_data'], ['set_some_data'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#scard()', function () {
+      before(function (done) {
+        extrnRedis.sadd('set:some_data',
+          [
+            'matthew',
+            'mark',
+            20,
+            'luke',
+            60
+          ],
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              extrnMySql.query(
+                'CREATE TABLE IF NOT EXISTS set_some_data ' +
+                '(' +
+                COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+                COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                ') ',
+                function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    extrnMySql.query(
+                      'INSERT INTO set_some_data (member) ' +
+                      'VALUES (?), (?), (?), (?), (?)',
+                      [
+                        'matthew',
+                        'mark',
+                        20,
+                        'luke',
+                        60
+                      ],
+                      function (err) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should return the number of members in the set from ' +
+        'both Redis and MySQL', function (done) {
+        instance.scard('some_data', function (err, result) {
+          if (err) {
+            done(err);
+          } else {
+            expect(result).to.be.equals(5);
+            extrnRedis.del('set:some_data', function (err) {
+              if (err) {
+                done(err);
+              } else {
+                instance.scard('some_data', function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.be.equals(5);
+                    done();
+                  }
+                });
+              }
+            });
+          }
+        });
+      });
+
+      after(function (done) {
+        _deleteData(['set:some_data'], ['set_some_data'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
     function _deleteData(keys, tables, callback) {
       async.series([
         function (firstCb) {
@@ -1931,27 +2360,24 @@ describe('Redis2MySQL', function () {
         }
       },
       function (secondCb) {
-        extrnMySql.query(
-          'DROP DATABASE IF EXISTS mytestxxx; ',
-          function (err) {
-            if (err) {
-              secondCb(err);
-            } else {
-              secondCb();
-            }
-          });
-      },
-      function (thirdCb) {
         if (is.existy(extrnMySql)) {
-          extrnMySql.end(function (err) {
-            if (err) {
-              thirdCb(err);
-            } else {
-              thirdCb();
-            }
-          });
+          extrnMySql.query(
+            'DROP DATABASE IF EXISTS mytestxxx; ',
+            function (err) {
+              if (err) {
+                secondCb(err);
+              } else {
+                extrnMySql.end(function (err) {
+                  if (err) {
+                    secondCb(err);
+                  } else {
+                    secondCb();
+                  }
+                });
+              }
+            });
         } else {
-          thirdCb();
+          secondCb();
         }
       }
     ], function (err) {
