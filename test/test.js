@@ -42,6 +42,7 @@ var chai = require('chai'),
     'lst:some_data',
     'set:somenumber',
     'set:some_data',
+    'zset:ssgrade',
     'map:somename'
   ],
   connection = {
@@ -385,7 +386,8 @@ describe('Redis2MySQL', function () {
           mysql: {
             user: connection.mysql.user,
             database: connection.mysql.database,
-            charset: connection.mysql.charset
+            charset: connection.mysql.charset,
+            multipleStatements: 'true'
           },
           custom: {
             datatypePrefix: {
@@ -1805,7 +1807,7 @@ describe('Redis2MySQL', function () {
       });
     });
 
-    describe.only('#sadd()', function () {
+    describe('#sadd()', function () {
       it('should add the specified values in a set in Redis and MySQL ',
         function (done) {
           instance.sadd('some_data',
@@ -2333,11 +2335,10 @@ describe('Redis2MySQL', function () {
       });
     });
 
-    describe.only('#zadd()', function () {
-
+    describe('#zadd()', function () {
       it('should add the elements into the database for sorted set ' +
         'in Redis and MySQL', function (done) {
-        instance.zadd('ssgrades',
+        instance.zadd('ssgrade',
           [
             98.75, 'myra',
             70.00, 'sal',
@@ -2350,14 +2351,47 @@ describe('Redis2MySQL', function () {
               done(err);
             } else {
               expect(result).to.be.equals(5);
-              extrnRedis.zrangebyscore('zset:ssgrades', 0, 100,
-                {withscores:true},
+              extrnRedis.zrangebyscore('zset:ssgrade', 0, 100,
+                ['withscores'],
                 function (err, result) {
                   if (err) {
                     done(err);
                   } else {
-                    expect(result).to.be.equals(true);
-                    done();
+                    expect(result).to.deep.equal(
+                      [
+                        'sal',
+                        '70',
+                        'ren',
+                        '75',
+                        'john',
+                        '81.5',
+                        'krull',
+                        '81.5',
+                        'myra',
+                        '98.75'
+                      ]);
+                    setTimeout(function () {
+                      extrnMySql.query(
+                        'SELECT member, score FROM zset_ssgrade ' +
+                        'ORDER BY score ASC',
+                        function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result[0].member).to.be.equals('sal');
+                            expect(result[0].score).to.be.equals(70);
+                            expect(result[1].member).to.be.equals('ren');
+                            expect(result[1].score).to.be.equals(75);
+                            expect(result[2].member).to.be.equals('john');
+                            expect(result[2].score).to.be.equals(81.5);
+                            expect(result[3].member).to.be.equals('krull');
+                            expect(result[3].score).to.be.equals(81.5);
+                            expect(result[4].member).to.be.equals('myra');
+                            expect(result[4].score).to.be.equals(98.75);
+                            done();
+                          }
+                        });
+                    }, 400);
                   }
                 });
             }
@@ -2365,7 +2399,861 @@ describe('Redis2MySQL', function () {
       });
 
       after(function (done) {
-        _deleteData(['zset:ssgrades'], ['zset_ssgrades'], function (err) {
+        _deleteData(['zset:ssgrade'], ['zset_ssgrade'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#zincrby()', function () {
+      before(function (done) {
+        var scoreMembers = [
+          98.75, 'myra',
+          70.00, 'sal',
+          81.50, 'john',
+          81.50, 'krull',
+          75.00, 'ren'
+        ];
+        async.series([
+          function (firstCb) {
+            extrnRedis.zadd('zset:ssgrade',
+              scoreMembers, function (err) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  firstCb();
+                }
+              });
+          },
+          function (secondCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS zset_ssgrade ' +
+              '(' +
+              COLUMNS.SCORE + ' DOUBLE, ' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          },
+          function (thirdCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO zset_ssgrade (score, member) ' +
+              'VALUES (?, ?) , (?, ?), (?, ?), (?, ?), (?, ?)',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  thirdCb(err);
+                } else {
+                  thirdCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
+      it('should be able to increment a member in the sorted set',
+        function (done) {
+          async.parallel([
+            function (firstCb) {
+              instance.zincrby('ssgrade', -5.5, 'john', function (err, result) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  expect(result).to.be.equals('76');
+                  setTimeout(
+                    function () {
+                      extrnMySql.query(
+                        'SELECT score ' +
+                        'FROM zset_ssgrade ' +
+                        'WHERE member = ? ',
+                        'john',
+                        function (err, result) {
+                          if (err) {
+                            firstCb(err);
+                          } else {
+                            expect(result[0].score).to.be.equals(76);
+                            firstCb();
+                          }
+                        });
+                    }, 400);
+                }
+              });
+            },
+            function (secondCb) {
+              instance.zincrby('ssgrade', 10.533, 'myra', function (err, result) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  expect(result).to.be.equals('109.283');
+                  setTimeout(
+                    function () {
+                      extrnMySql.query(
+                        'SELECT score ' +
+                        'FROM zset_ssgrade ' +
+                        'WHERE member = ? ',
+                        'myra',
+                        function (err, result) {
+                          if (err) {
+                            secondCb(err);
+                          } else {
+                            expect(result[0].score).to.be.equals(109.283);
+                            secondCb();
+                          }
+                        });
+                    }, 400);
+                }
+              });
+            }
+          ], function (err) {
+            if (err) {
+              done(err);
+            } else {
+              done();
+            }
+          });
+        });
+
+      after(function (done) {
+        _deleteData(['zset:ssgrade'], ['zset_ssgrade'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#zscore()', function () {
+      beforeEach(function (done) {
+        var scoreMembers = [
+          98.75, 'myra',
+          70.00, 'sal',
+          81.50, 'john',
+          81.50, 'krull',
+          75.00, 'ren'
+        ];
+        async.series([
+          function (firstCb) {
+            extrnRedis.zadd('zset:ssgrade',
+              scoreMembers, function (err) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  firstCb();
+                }
+              });
+          },
+          function (secondCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS zset_ssgrade ' +
+              '(' +
+              COLUMNS.SCORE + ' DOUBLE, ' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          },
+          function (thirdCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO zset_ssgrade (score, member) ' +
+              'VALUES (?, ?) , (?, ?), (?, ?), (?, ?), (?, ?)',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  thirdCb(err);
+                } else {
+                  thirdCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
+      it('should retrieve the correct score given the specified member',
+        function (done) {
+          instance.zscore('ssgrade', 'sal', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('70');
+              async.series(
+                [
+                  function (firstCb) {
+                    extrnRedis.zrem('zset:ssgrade', 'sal', function (err) {
+                      if (err) {
+                        firstCb(err);
+                      } else {
+                        firstCb();
+                      }
+                    });
+                  },
+                  function (secondCb) {
+                    setTimeout(
+                      function () {
+                        extrnMySql.query(
+                          'SELECT score ' +
+                          'FROM zset_ssgrade ' +
+                          'WHERE member = ?',
+                          'sal',
+                          function (err, result) {
+                            if (err) {
+                              secondCb(err);
+                            } else {
+                              expect(result[0].score).to.be.equals(70);
+                              secondCb();
+                            }
+                          }
+                        );
+                      }, 400);
+                  }
+                ], function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    done();
+                  }
+                });
+            }
+          });
+        });
+
+      it('should return null when the member is non-existent in the sorted ' +
+        'set', function (done) {
+        instance.zscore('ssgrade', 'falcon', function (err, result) {
+          if (err) {
+            done(err);
+          } else {
+            expect(result).to.be.equals(null);
+            done();
+          }
+        });
+      });
+
+      afterEach(function (done) {
+        _deleteData(['zset:ssgrade'], ['zset_ssgrade'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#zrank()', function () {
+      beforeEach(function (done) {
+        var scoreMembers = [
+          98.75, 'myra',
+          70.00, 'sal',
+          81.50, 'john',
+          81.50, 'krull',
+          75.00, 'ren'
+        ];
+        async.series([
+          function (firstCb) {
+            extrnRedis.zadd('zset:ssgrade',
+              scoreMembers, function (err) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  firstCb();
+                }
+              });
+          },
+          function (secondCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS zset_ssgrade ' +
+              '(' +
+              COLUMNS.SCORE + ' DOUBLE, ' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          },
+          function (thirdCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO zset_ssgrade (score, member) ' +
+              'VALUES (?, ?) , (?, ?), (?, ?), (?, ?), (?, ?)',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  thirdCb(err);
+                } else {
+                  thirdCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
+      it('should be able to get the index of the member in a sorted set',
+        function (done) {
+          instance.zrank('ssgrade', 'krull', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(3);
+              async.series([
+                function (firstCb) {
+                  extrnRedis.zrem('zset:ssgrade', 'krull',
+                    function (err) {
+                      if (err) {
+                        firstCb(err);
+                      } else {
+                        firstCb();
+                      }
+                    });
+                },
+                function (secondCb) {
+                  instance.zrank('ssgrade', 'krull', function (err, result) {
+                    if (err) {
+                      secondCb(err);
+                    } else {
+                      expect(result).to.be.equals(3);
+                      secondCb();
+                    }
+                  });
+                }
+              ], function (err) {
+                if (err) {
+                  done(err);
+                } else {
+                  done();
+                }
+              });
+            }
+          });
+        });
+
+      it('should be able to return null if the member does not exist',
+        function (done) {
+          instance.zrank('ssgrade', 'morlock', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(null);
+              done();
+            }
+          });
+        });
+
+      afterEach(function (done) {
+        _deleteData(['zset:ssgrade'], ['zset_ssgrade'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#zrangebyscore()', function () {
+      beforeEach(function (done) {
+        var scoreMembers = [
+          98.75, 'myra',
+          70.00, 'sal',
+          81.50, 'krull',
+          81.50, 'john',
+          75.00, 'ren'
+        ];
+        async.series([
+          function (firstCb) {
+            extrnRedis.zadd('zset:ssgrade',
+              scoreMembers, function (err) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  firstCb();
+                }
+              });
+          },
+          function (secondCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS zset_ssgrade ' +
+              '(' +
+              COLUMNS.SCORE + ' DOUBLE, ' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          },
+          function (thirdCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO zset_ssgrade (score, member) ' +
+              'VALUES (?, ?) , (?, ?), (?, ?), (?, ?), (?, ?)',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  thirdCb(err);
+                } else {
+                  thirdCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
+      it('should be able to return range of members in order of their scores' +
+        'with value(s) excluded',
+        function (done) {
+          instance.zrangebyscore('ssgrade', '61', '(81.5', true, null,
+            null, null,
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.deep.equals(
+                  [
+                    'sal', '70',
+                    'ren', '75'
+                  ]
+                );
+                extrnRedis.zrem('zset:ssgrade',
+                  'sal',
+                  'ren',
+                  'john',
+                  'krull',
+                  'myra',
+                  function (err) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      instance.zrangebyscore('ssgrade', '61', '(81.5', true, null,
+                        null, null,
+                        function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result).to.be.deep.equals(
+                              [
+                                'sal', 70,
+                                'ren', 75
+                              ]
+                            );
+                            done();
+                          }
+                        });
+                    }
+                  });
+              }
+            });
+        });
+
+      it('should be able to return range of members in order of their scores' +
+        'with value of infinity',
+        function (done) {
+          instance.zrangebyscore('ssgrade', '-inf', '81.5', true, null,
+            null, null,
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.deep.equals(
+                  [
+                    'sal', '70',
+                    'ren', '75',
+                    'john', '81.5',
+                    'krull', '81.5'
+                  ]
+                );
+                extrnRedis.zrem('zset:ssgrade',
+                  'sal',
+                  'ren',
+                  'john',
+                  'krull',
+                  'myra',
+                  function (err) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      instance.zrangebyscore('ssgrade', '-inf', '81.5', true, null,
+                        null, null,
+                        function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result).to.be.deep.equals(
+                              [
+                                'sal', 70,
+                                'ren', 75,
+                                'john', 81.5,
+                                'krull', 81.5
+                              ]
+                            );
+                            done();
+                          }
+                        });
+                    }
+                  });
+              }
+            });
+        });
+
+      it('should be able to return range of members in order of their scores,' +
+        'supporting limit feature',
+        function (done) {
+          instance.zrangebyscore('ssgrade', '61', 'inf', true, true,
+            2, 4,
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.deep.equals(
+                  [
+                    'john', '81.5',
+                    'krull', '81.5',
+                    'myra', '98.75'
+                  ]
+                );
+                extrnRedis.zrem('zset:ssgrade',
+                  'sal',
+                  'ren',
+                  'john',
+                  'krull',
+                  'myra',
+                  function (err) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      instance.zrangebyscore('ssgrade', '61', '100', true, true,
+                        2, 4,
+                        function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result).to.be.deep.equals(
+                              [
+                                'john', 81.5,
+                                'krull', 81.5,
+                                'myra', 98.75
+                              ]
+                            );
+                            done();
+                          }
+                        });
+                    }
+                  });
+              }
+            });
+        });
+
+      it('should be able to return null if the scores are not within the ' +
+        'ranges which were defined',
+        function (done) {
+          instance.zrangebyscore('ssgrade', '100', 'inf', true, true,
+            2, 4,
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.deep.equals([]);
+                done();
+              }
+            });
+        });
+
+      afterEach(function (done) {
+        _deleteData(['zset:ssgrade'], ['zset_ssgrade'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#zrevrangebyscore()', function () {
+      beforeEach(function (done) {
+        var scoreMembers = [
+          98.75, 'myra',
+          70.00, 'sal',
+          81.50, 'krull',
+          81.50, 'john',
+          75.00, 'ren'
+        ];
+        async.series([
+          function (firstCb) {
+            extrnRedis.zadd('zset:ssgrade',
+              scoreMembers, function (err) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  firstCb();
+                }
+              });
+          },
+          function (secondCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS zset_ssgrade ' +
+              '(' +
+              COLUMNS.SCORE + ' DOUBLE, ' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          },
+          function (thirdCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO zset_ssgrade (score, member) ' +
+              'VALUES (?, ?) , (?, ?), (?, ?), (?, ?), (?, ?)',
+              scoreMembers,
+              function (err) {
+                if (err) {
+                  thirdCb(err);
+                } else {
+                  thirdCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
+      it('should be able to return range of members in order of their scores' +
+        'with value(s) excluded',
+        function (done) {
+          instance.zrevrangebyscore('ssgrade', '(81.5', '61', true, null,
+            null, null,
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.deep.equals(
+                  [
+                    'ren', '75',
+                    'sal', '70'
+                  ]
+                );
+                extrnRedis.zrem('zset:ssgrade',
+                  'sal',
+                  'ren',
+                  'john',
+                  'krull',
+                  'myra',
+                  function (err) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      instance.zrevrangebyscore('ssgrade', '(81.5', '61', true,
+                        null, null, null,
+                        function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result).to.be.deep.equals(
+                              [
+                                'ren', 75,
+                                'sal', 70
+                              ]);
+                            done();
+                          }
+                        });
+                    }
+                  });
+              }
+            });
+        });
+
+      it('should be able to return range of members in order of their scores' +
+        'with value of infinity',
+        function (done) {
+          instance.zrevrangebyscore('ssgrade', '81.5', '-inf', true, null,
+            null, null,
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.deep.equals(
+                  [
+                    'krull', '81.5',
+                    'john', '81.5',
+                    'ren', '75',
+                    'sal', '70'
+                  ]
+                );
+                extrnRedis.zrem('zset:ssgrade',
+                  'sal',
+                  'ren',
+                  'john',
+                  'krull',
+                  'myra',
+                  function (err) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      instance.zrevrangebyscore('ssgrade', '81.5', '-inf', true,
+                        null, null, null,
+                        function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result).to.be.deep.equals(
+                              [
+                                'krull', 81.5,
+                                'john', 81.5,
+                                'ren', 75,
+                                'sal', 70
+                              ]);
+                            done();
+                          }
+                        });
+                    }
+                  });
+              }
+            });
+        });
+
+      it('should be able to return range of members in order of their scores,' +
+        'supporting limit feature',
+        function (done) {
+          instance.zrevrangebyscore('ssgrade', 'inf', '61', true, true,
+            1, 3,
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.deep.equals(
+                  [
+                    'krull', '81.5',
+                    'john', '81.5',
+                    'ren', '75'
+                  ]
+                );
+                extrnRedis.zrem('zset:ssgrade',
+                  'sal',
+                  'ren',
+                  'john',
+                  'krull',
+                  'myra',
+                  function (err) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      instance.zrevrangebyscore('ssgrade', 'inf', '61', true, true,
+                        1, 3,
+                        function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result).to.be.deep.equals(
+                              [
+                                'krull', 81.5,
+                                'john', 81.5,
+                                'ren', 75
+                              ]
+                            );
+                            done();
+                          }
+                        });
+                    }
+                  });
+              }
+            });
+        });
+
+      it('should be able to return null if the scores are not within the ' +
+        'ranges which were defined',
+        function (done) {
+          instance.zrangebyscore('ssgrade', 'inf', '100', true, true,
+            2, 4,
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.deep.equals([]);
+                done();
+              }
+            });
+        });
+
+      afterEach(function (done) {
+        _deleteData(['zset:ssgrade'], ['zset_ssgrade'], function (err) {
           if (err) {
             done(err);
           } else {
