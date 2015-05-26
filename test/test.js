@@ -39,11 +39,21 @@ var chai = require('chai'),
     'str:some_new_type:zz',
     'str:some_new_type:aa',
     'str:somenumtype:testcounter',
+    'str:another_type:some_old_key',
+    'str:another_type:some_new_key',
     'lst:some_data',
+    'lst:another_old_key',
+    'lst:another_new_key',
     'set:somenumber',
     'set:some_data',
+    'set:another_old_key',
+    'set:another_new_key',
     'zset:ssgrade',
-    'map:somename'
+    'zset:another_old_key',
+    'zset:another_new_key',
+    'map:somename',
+    'map:another_old_key',
+    'map:another_new_key'
   ],
   connection = {
     mysql: {
@@ -3260,6 +3270,1320 @@ describe('Redis2MySQL', function () {
             done();
           }
         });
+      });
+    });
+
+    describe('#hset()', function () {
+      it('should be able to add a key-value in a hash', function (done) {
+        instance.hset('somename', 'hello', 'world', function (err, result) {
+          if (err) {
+            done(err);
+          } else {
+            expect(result).to.be.equals(1);
+            extrnRedis.hget('map:somename', 'hello', function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.equals('world');
+                setTimeout(
+                  function () {
+                    extrnMySql.query(
+                      'SELECT value ' +
+                      'FROM map_somename ' +
+                      'WHERE field = ? ',
+                      'hello',
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result[0].value).to.be.equals('world');
+                          instance.hset('somename', 'hello', 'a new value',
+                            function (err, result) {
+                              if (err) {
+                                done(err);
+                              } else {
+                                expect(result).to.be.equals(0);
+                                extrnRedis.hget('map:somename', 'hello',
+                                  function (err, result) {
+                                    if (err) {
+                                      done(err);
+                                    } else {
+                                      expect(result).to.be.equals('a new value');
+                                      setTimeout(
+                                        function () {
+                                          extrnMySql.query(
+                                            'SELECT value ' +
+                                            'FROM map_somename ' +
+                                            'WHERE field = ? ',
+                                            'hello',
+                                            function (err, result) {
+                                              if (err) {
+                                                done(err);
+                                              } else {
+                                                expect(result[0].value).to.be
+                                                  .equals('a new value');
+                                                done();
+                                              }
+                                            });
+                                        }, 400);
+                                    }
+                                  });
+                              }
+                            });
+                        }
+                      });
+                  }, 400);
+              }
+            });
+          }
+        });
+      });
+
+      afterEach(function (done) {
+        _deleteData(['map:somename'], ['map_somename'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#hmset()', function () {
+      it('should be able to add multiple key-values in a hash',
+        function (done) {
+          instance.hmset('somename',
+            [
+              'oneField', 'oneValue',
+              'twoField', 'twoValue',
+              'threeField', 'threeValue',
+              'fourField', 'fourValue'
+            ],
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.equals('OK');
+                extrnRedis.hmget('map:somename',
+                  [
+                    'fourField',
+                    'twoField',
+                    'oneField',
+                    'threeField'
+                  ],
+                  function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result).to.be.deep.equals(
+                        [
+                          'fourValue',
+                          'twoValue',
+                          'oneValue',
+                          'threeValue'
+                        ]);
+                      setTimeout(
+                        function () {
+                          extrnMySql.query(
+                            'SELECT field, value ' +
+                            'FROM map_somename ' +
+                            'WHERE field IN (?, ?, ?, ?) ' +
+                            'ORDER BY field ASC',
+                            [
+                              'oneField',
+                              'twoField',
+                              'fourField',
+                              'threeField'
+                            ],
+                            function (err, result) {
+                              if (err) {
+                                done(err);
+                              } else {
+                                expect(result[0].field).to.be.equals('fourField');
+                                expect(result[0].value).to.be.equals('fourValue');
+                                expect(result[1].field).to.be.equals('oneField');
+                                expect(result[1].value).to.be.equals('oneValue');
+                                expect(result[2].field).to.be.equals('threeField');
+                                expect(result[2].value).to.be.equals('threeValue');
+                                expect(result[3].field).to.be.equals('twoField');
+                                expect(result[3].value).to.be.equals('twoValue');
+                                instance.hmset('somename',
+                                  [
+                                    'twoField', 'a two value',
+                                    'fourField', 'a four value'
+                                  ],
+                                  function (err, result) {
+                                    if (err) {
+                                      done(err);
+                                    } else {
+                                      expect(result).to.be.equals('OK');
+                                      extrnRedis.hmget('map:somename',
+                                        [
+                                          'oneField',
+                                          'twoField',
+                                          'threeField',
+                                          'fourField'
+                                        ],
+                                        function (err, result) {
+                                          if (err) {
+                                            done(err);
+                                          } else {
+                                            expect(result).to.be.deep.equals(
+                                              [
+                                                'oneValue',
+                                                'a two value',
+                                                'threeValue',
+                                                'a four value'
+                                              ]);
+                                            setTimeout(
+                                              function () {
+                                                extrnMySql.query(
+                                                  'SELECT field, value ' +
+                                                  'FROM map_somename ' +
+                                                  'WHERE field IN (?, ?, ?, ?) ' +
+                                                  'ORDER BY field ASC',
+                                                  [
+                                                    'fourField',
+                                                    'twoField',
+                                                    'oneField',
+                                                    'threeField'
+                                                  ],
+                                                  function (err, result) {
+                                                    if (err) {
+                                                      done(err);
+                                                    } else {
+                                                      expect(result[0].field).to
+                                                        .be.equals('fourField');
+                                                      expect(result[0].value).to
+                                                        .be.equals('a four value');
+                                                      expect(result[1].field).to
+                                                        .be.equals('oneField');
+                                                      expect(result[1].value).to
+                                                        .be.equals('oneValue');
+                                                      expect(result[2].field).to
+                                                        .be.equals('threeField');
+                                                      expect(result[2].value).to
+                                                        .be.equals('threeValue');
+                                                      expect(result[3].field).to
+                                                        .be.equals('twoField');
+                                                      expect(result[3].value).to
+                                                        .be.equals('a two value');
+                                                      done();
+                                                    }
+                                                  });
+                                              }, 400);
+                                          }
+                                        });
+                                    }
+                                  });
+                              }
+                            });
+                        }, 400);
+                    }
+                  });
+              }
+            });
+        });
+
+      afterEach(function (done) {
+        _deleteData(['map:somename'], ['map_somename'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#hget()', function () {
+      before(function (done) {
+        extrnRedis.hset('map:somename', 'hello', 'world',
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              async.series(
+                [
+                  function (firstCb) {
+                    extrnMySql.query(
+                      'CREATE TABLE IF NOT EXISTS map_somename' +
+                      '(' +
+                      COLUMNS.FIELD + ' VARCHAR(255) PRIMARY KEY, ' +
+                      COLUMNS.VALUE + ' VARCHAR(255), ' +
+                      COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                      COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                      ') ',
+                      function (err) {
+                        if (err) {
+                          firstCb(err);
+                        } else {
+                          firstCb();
+                        }
+                      });
+                  },
+                  function (secondCb) {
+                    extrnMySql.query(
+                      'INSERT INTO map_somename (field, value) VALUES (?, ?) ',
+                      [
+                        'hello',
+                        'world'
+                      ],
+                      function (err) {
+                        if (err) {
+                          secondCb(err);
+                        } else {
+                          secondCb();
+                        }
+                      });
+                  }
+                ], function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    done();
+                  }
+                });
+            }
+          });
+      });
+
+      it('should get the value of the has from Redis and MySQL given the key',
+        function (done) {
+          instance.hget('somename', 'hello', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('world');
+              extrnRedis.hdel('map:somename', 'hello', function (err) {
+                if (err) {
+                  done(err);
+                } else {
+                  instance.hget('somename', 'hello', function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result).to.be.equals('world');
+                      done();
+                    }
+                  });
+                }
+              });
+            }
+          });
+        });
+
+      after(function (done) {
+        _deleteData(['map:somename'], ['map_somename'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#hmget()', function () {
+      beforeEach(function (done) {
+        extrnRedis.hmset('map:somename',
+          'hello', 'world',
+          'this is', 'sparta',
+          'goodness', 'gracious',
+          'madame im', 'adam',
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              async.series(
+                [
+                  function (firstCb) {
+                    extrnMySql.query(
+                      'CREATE TABLE IF NOT EXISTS map_somename' +
+                      '(' +
+                      COLUMNS.FIELD + ' VARCHAR(255) PRIMARY KEY, ' +
+                      COLUMNS.VALUE + ' VARCHAR(255), ' +
+                      COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                      COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                      ') ',
+                      function (err) {
+                        if (err) {
+                          firstCb(err);
+                        } else {
+                          firstCb();
+                        }
+                      });
+                  },
+                  function (secondCb) {
+                    extrnMySql.query(
+                      'INSERT INTO map_somename (field, value) ' +
+                      'VALUES (?, ?) , (?, ?) , (?, ?) , (?, ?)',
+                      [
+                        'hello', 'world',
+                        'this is', 'sparta',
+                        'goodness', 'gracious',
+                        'madame im', 'adam'
+                      ],
+                      function (err) {
+                        if (err) {
+                          secondCb(err);
+                        } else {
+                          secondCb();
+                        }
+                      });
+                  }
+                ], function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    done();
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to retrieve multiple values of fields from Redis ' +
+        'and MySQL', function (done) {
+        instance.hmget('somename',
+          [
+            'madame im',
+            'goodness',
+            'hello',
+            'this is'
+          ],
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.deep.equals(
+                [
+                  'adam',
+                  'gracious',
+                  'world',
+                  'sparta'
+                ]
+              );
+              extrnRedis.hdel('map:somename',
+                'madame im',
+                'goodness',
+                'hello',
+                'this is',
+                function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    instance.hmget('somename',
+                      [
+                        'this is',
+                        'goodness',
+                        'madame im',
+                        'hello'
+                      ],
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result[0]).to.be.equals('sparta');
+                          expect(result[1]).to.be.equals('gracious');
+                          expect(result[2]).to.be.equals('adam');
+                          expect(result[3]).to.be.equals('world');
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to return an array of null values for fields ' +
+        'which do not exist', function (done) {
+        instance.hmget('somename',
+          [
+            'bow',
+            'samurai',
+            'gelatto',
+            'star'
+          ],
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              for (var i = 0; i < result.length; i++) {
+                expect(result[i]).to.be.equals(null);
+              }
+              done();
+            }
+          });
+      });
+
+      afterEach(function (done) {
+        _deleteData(['map:somename'], ['map_somename'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#hgetall()', function () {
+      beforeEach(function (done) {
+        extrnRedis.hmset('map:somename',
+          'hello', 'world',
+          'this is', 'sparta',
+          'goodness', 'gracious',
+          'madame im', 'adam',
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              async.series(
+                [
+                  function (firstCb) {
+                    extrnMySql.query(
+                      'CREATE TABLE IF NOT EXISTS map_somename' +
+                      '(' +
+                      COLUMNS.FIELD + ' VARCHAR(255) PRIMARY KEY, ' +
+                      COLUMNS.VALUE + ' VARCHAR(255), ' +
+                      COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                      COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                      ') ',
+                      function (err) {
+                        if (err) {
+                          firstCb(err);
+                        } else {
+                          firstCb();
+                        }
+                      });
+                  },
+                  function (secondCb) {
+                    extrnMySql.query(
+                      'INSERT INTO map_somename (field, value) ' +
+                      'VALUES (?, ?) , (?, ?) , (?, ?) , (?, ?)',
+                      [
+                        'hello', 'world',
+                        'this is', 'sparta',
+                        'goodness', 'gracious',
+                        'madame im', 'adam'
+                      ],
+                      function (err) {
+                        if (err) {
+                          secondCb(err);
+                        } else {
+                          secondCb();
+                        }
+                      });
+                  }
+                ], function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    done();
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to get all the fields and values of a hash from ' +
+        'Redis and MySQL',
+        function (done) {
+          instance.hgetall('somename', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.deep.equals(
+                {
+                  goodness: 'gracious',
+                  hello: 'world',
+                  'madame im': 'adam',
+                  'this is': 'sparta'
+                });
+              extrnRedis.del('map:somename', function (err) {
+                if (err) {
+                  done(err);
+                } else {
+                  instance.hgetall('somename', function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result).to.be.deep.equals(
+                        {
+                          goodness: 'gracious',
+                          hello: 'world',
+                          'madame im': 'adam',
+                          'this is': 'sparta'
+                        });
+                      done();
+                    }
+                  });
+                }
+              });
+            }
+          });
+        });
+
+      it('should be able to get a null object if the fields are invalid',
+        function (done) {
+          instance.hgetall('sAneNAmE', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.deep.equals({});
+              done();
+            }
+          });
+        });
+
+      afterEach(function (done) {
+        _deleteData(['map:somename'], ['map_somename'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#hexists()', function () {
+      beforeEach(function (done) {
+        extrnRedis.hmset('map:somename',
+          'hello', 'world',
+          'this is', 'sparta',
+          'goodness', 'gracious',
+          'madame im', 'adam',
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              async.series(
+                [
+                  function (firstCb) {
+                    extrnMySql.query(
+                      'CREATE TABLE IF NOT EXISTS map_somename' +
+                      '(' +
+                      COLUMNS.FIELD + ' VARCHAR(255) PRIMARY KEY, ' +
+                      COLUMNS.VALUE + ' VARCHAR(255), ' +
+                      COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                      COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                      ') ',
+                      function (err) {
+                        if (err) {
+                          firstCb(err);
+                        } else {
+                          firstCb();
+                        }
+                      });
+                  },
+                  function (secondCb) {
+                    extrnMySql.query(
+                      'INSERT INTO map_somename (field, value) ' +
+                      'VALUES (?, ?) , (?, ?) , (?, ?) , (?, ?)',
+                      [
+                        'hello', 'world',
+                        'this is', 'sparta',
+                        'goodness', 'gracious',
+                        'madame im', 'adam'
+                      ],
+                      function (err) {
+                        if (err) {
+                          secondCb(err);
+                        } else {
+                          secondCb();
+                        }
+                      });
+                  }
+                ], function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    done();
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to check the existence of a value of a field',
+        function (done) {
+          instance.hexists('somename', 'madame im', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(1);
+              done();
+            }
+          });
+        });
+
+      it('should be able to check the non-existence of a value of a field',
+        function (done) {
+          instance.hexists('somename', 'blabla', function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(0);
+              done();
+            }
+          });
+        });
+
+      afterEach(function (done) {
+        _deleteData(['map:somename'], ['map_somename'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#hdel()', function () {
+      beforeEach(function (done) {
+        extrnRedis.hmset('map:somename',
+          'hello', 'world',
+          'this is', 'sparta',
+          'goodness', 'gracious',
+          'madame im', 'adam',
+          function (err) {
+            if (err) {
+              done(err);
+            } else {
+              async.series(
+                [
+                  function (firstCb) {
+                    extrnMySql.query(
+                      'CREATE TABLE IF NOT EXISTS map_somename' +
+                      '(' +
+                      COLUMNS.FIELD + ' VARCHAR(255) PRIMARY KEY, ' +
+                      COLUMNS.VALUE + ' VARCHAR(255), ' +
+                      COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                      COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                      ') ',
+                      function (err) {
+                        if (err) {
+                          firstCb(err);
+                        } else {
+                          firstCb();
+                        }
+                      });
+                  },
+                  function (secondCb) {
+                    extrnMySql.query(
+                      'INSERT INTO map_somename (field, value) ' +
+                      'VALUES (?, ?) , (?, ?) , (?, ?) , (?, ?)',
+                      [
+                        'hello', 'world',
+                        'this is', 'sparta',
+                        'goodness', 'gracious',
+                        'madame im', 'adam'
+                      ],
+                      function (err) {
+                        if (err) {
+                          secondCb(err);
+                        } else {
+                          secondCb();
+                        }
+                      });
+                  }
+                ], function (err) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    done();
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to delete one or more hash field-value',
+        function (done) {
+          instance.hdel('somename', ['goodness', 'madame im', 'this is'],
+            function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.equals(3);
+                extrnRedis.hkeys('map:somename', function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.deep.equals(['hello']);
+                    setTimeout(
+                      function () {
+                        extrnMySql.query(
+                          'SELECT COUNT(*) cnt ' +
+                          'FROM map_somename ' +
+                          'WHERE field IN (?, ?, ?)',
+                          [
+                            'goodness',
+                            'madame im',
+                            'this is'
+                          ],
+                          function (err, result) {
+                            if (err) {
+                              done(err);
+                            } else {
+                              expect(result[0].cnt).to.be.equals(0);
+                              instance.hdel('somename', ['hello'],
+                                function (err, result) {
+                                  if (err) {
+                                    done(err);
+                                  } else {
+                                    expect(result).to.be.equals(1);
+                                    extrnRedis.hkeys('map:somename',
+                                      function (err, result) {
+                                        if (err) {
+                                          done(err);
+                                        } else {
+                                          expect(result).to.deep.equals([]);
+                                          setTimeout(function () {
+                                            extrnMySql.query(
+                                              'SELECT COUNT(*) cnt ' +
+                                              'FROM map_somename ' +
+                                              'WHERE field IN (?)',
+                                              [
+                                                'hello'
+                                              ],
+                                              function (err, result) {
+                                                if (err) {
+                                                  done(err);
+                                                } else {
+                                                  expect(result[0].cnt).to.be
+                                                    .equals(0);
+                                                  done();
+                                                }
+                                              }, 400);
+                                          });
+                                        }
+                                      });
+                                  }
+                                });
+                            }
+                          });
+                      }, 400);
+                  }
+                });
+              }
+            });
+        });
+
+      afterEach(function (done) {
+        _deleteData(['map:somename'], ['map_somename'], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#rename()', function () {
+      before(function (done) {
+        var time;
+        async.series([
+          function (firstStringCb) {
+            extrnRedis.set('str:another_type:another_old_key', 'kiersey',
+              function (err) {
+                if (err) {
+                  firstStringCb(err);
+                } else {
+                  firstStringCb();
+                }
+              });
+          },
+          function (secondStringCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS `str_another_type` ' +
+              '(`' +
+              COLUMNS.KEY + '` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondStringCb(err);
+                } else {
+                  secondStringCb();
+                }
+              });
+          },
+          function (thirdStringCb) {
+            extrnMySql.query(
+              'INSERT INTO str_another_type (`key`, value) VALUES (?, ?)',
+              [
+                'another_old_key',
+                'kiersey'
+              ],
+              function (err) {
+                if (err) {
+                  thirdStringCb(err);
+                } else {
+                  thirdStringCb();
+                }
+              });
+          },
+          function (firstListCb) {
+            extrnRedis.multi()
+              .time()
+              .lpush('lst:another_old_key',
+              'valueOne',
+              'valueTwo')
+              .exec(function (err, result) {
+                if (err) {
+                  firstListCb(err);
+                } else {
+                  time = result[0][1][0] + result[0][1][1];
+                  firstListCb();
+                }
+              });
+          },
+          function (secondListCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS lst_another_old_key ' +
+              ' (' +
+              COLUMNS.SEQ + ' BIGINT PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondListCb(err);
+                } else {
+                  secondListCb();
+                }
+              });
+          },
+          function (thirdListCb) {
+            extrnMySql.query(
+              'INSERT INTO lst_another_old_key (time_sequence, value) ' +
+              'VALUES (?, ?) , (?, ?) ',
+              [
+                time,
+                'valueOne',
+                time + 1,
+                'valueTwo'
+              ],
+              function (err) {
+                if (err) {
+                  thirdListCb(err);
+                } else {
+                  thirdListCb();
+                }
+              });
+          },
+          function (firstSetCb) {
+            extrnRedis.sadd('set:another_old_key',
+              'memberOne',
+              'memberTwo',
+              'memberThree',
+              function (err) {
+                if (err) {
+                  firstSetCb(err);
+                } else {
+                  firstSetCb();
+                }
+              });
+          },
+          function (secondSetCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS set_another_old_key ' +
+              '(' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondSetCb(err);
+                } else {
+                  secondSetCb();
+                }
+              });
+          },
+          function (thirdSetCb) {
+            extrnMySql.query(
+              'INSERT INTO set_another_old_key (member) ' +
+              'VALUES (?), (?), (?) ',
+              [
+                'memberOne',
+                'memberTwo',
+                'memberThree'
+              ],
+              function (err) {
+                if (err) {
+                  thirdSetCb(err);
+                } else {
+                  thirdSetCb();
+                }
+              });
+          },
+          function (firstSortedSetCb) {
+            extrnRedis.zadd('zset:another_old_key',
+              90,
+              'memberOne',
+              80.34,
+              'memberTwo',
+              73.23,
+              'memberThree',
+              function (err) {
+                if (err) {
+                  firstSortedSetCb(err);
+                } else {
+                  firstSortedSetCb();
+                }
+              });
+          },
+          function (secondSortedSetCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS zset_another_old_key' +
+              '(' +
+              COLUMNS.SCORE + ' DOUBLE, ' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondSortedSetCb(err);
+                } else {
+                  secondSortedSetCb();
+                }
+              });
+          },
+          function (thirdSortedSetCb) {
+            extrnMySql.query(
+              'INSERT INTO zset_another_old_key (score, member) ' +
+              'VALUES (?, ?) , (?, ?), (?, ?) ',
+              [
+                90,
+                'memberOne',
+                80.34,
+                'memberTwo',
+                73.23,
+                'memberThree'
+              ],
+              function (err) {
+                if (err) {
+                  thirdSortedSetCb(err);
+                } else {
+                  thirdSortedSetCb();
+                }
+              });
+          },
+          function (firstHashCb) {
+            extrnRedis.hmset('map:another_old_key',
+              'fieldOne', 'valueOne',
+              'fieldTwo', 'valueTwo',
+              'fieldThree', 'valueThree',
+              function (err) {
+                if (err) {
+                  firstHashCb(err);
+                } else {
+                  firstHashCb();
+                }
+              });
+          },
+          function (secondHashCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS map_another_old_key ' +
+              '(`' +
+              COLUMNS.FIELD + '` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondHashCb(err);
+                } else {
+                  secondHashCb();
+                }
+              });
+          },
+          function (thirdHashCb) {
+            extrnMySql.query(
+              'INSERT INTO map_another_old_key (field, value) ' +
+              'VALUES (?, ?) , (?, ?), (?, ?) ',
+              [
+                'fieldOne', 'valueOne',
+                'fieldTwo', 'valueTwo',
+                'fieldThree', 'valueThree'
+              ],
+              function (err) {
+                if (err) {
+                  thirdHashCb(err);
+                } else {
+                  thirdHashCb();
+                }
+              });
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
+      it('should be able to rename the key and MySQL table of Redis type ' +
+        'string', function (done) {
+        instance.rename('str:another_type:another_old_key',
+          'str:another_type:another_new_key',
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('OK');
+              extrnRedis.get('str:another_type:another_new_key',
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.be.equals('kiersey');
+                    extrnMySql.query(
+                      'SELECT value, `key` ' +
+                      'FROM str_another_type ' +
+                      'WHERE `key` IN (?, ?) ',
+                      [
+                        'another_new_key',
+                        'another_old_key'
+                      ],
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result.length).to.be.equals(1);
+                          expect(result[0].key).to.be.equals('another_new_key');
+                          expect(result[0].value).to.be.equals('kiersey');
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to rename the key and MySQL table of Redis type ' +
+        'list', function (done) {
+        instance.rename('lst:another_old_key',
+          'lst:another_new_key',
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('OK');
+              extrnRedis.lindex('lst:another_new_key',
+                0,
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.be.equals('valueTwo');
+                    extrnMySql.query(
+                      'SELECT value ' +
+                      'FROM lst_another_new_key ' +
+                      'WHERE value IN (?, ?) ' +
+                      'ORDER BY time_sequence ASC',
+                      [
+                        'valueOne',
+                        'valueTwo'
+                      ],
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result[0].value).to.be.equals('valueOne');
+                          expect(result[1].value).to.be.equals('valueTwo');
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to rename the key and MySQL table of Redis type ' +
+        'set', function (done) {
+        instance.rename('set:another_old_key',
+          'set:another_new_key',
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('OK');
+              extrnRedis.smembers('set:another_new_key',
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.include('memberOne');
+                    expect(result).to.include('memberTwo');
+                    expect(result).to.include('memberThree');
+                    extrnMySql.query(
+                      'SELECT member ' +
+                      'FROM set_another_new_key ' +
+                      'WHERE member IN (?, ?, ?) ' +
+                      'ORDER BY member ASC',
+                      [
+                        'memberOne',
+                        'memberTwo',
+                        'memberThree'
+                      ],
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result[0].member).to.be.equals('memberOne');
+                          expect(result[1].member).to.be.equals('memberThree');
+                          expect(result[2].member).to.be.equals('memberTwo');
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to rename the key and MySQL table of Redis type ' +
+        'sorted set', function (done) {
+        instance.rename('zset:another_old_key',
+          'zset:another_new_key',
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('OK');
+              extrnRedis.zrangebyscore('zset:another_new_key',
+                70,
+                91,
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.be.deep.equals(
+                      [
+                        'memberThree',
+                        'memberTwo',
+                        'memberOne'
+                      ]);
+                    extrnMySql.query(
+                      'SELECT member ' +
+                      'FROM zset_another_new_key ' +
+                      'WHERE member IN (?, ?, ?) ' +
+                      'ORDER BY score ASC',
+                      [
+                        'memberOne',
+                        'memberTwo',
+                        'memberThree'
+                      ],
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result[0].member).to.be.equals('memberThree');
+                          expect(result[1].member).to.be.equals('memberTwo');
+                          expect(result[2].member).to.be.equals('memberOne');
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to rename the key and MySQL table of Redis type ' +
+        'hash', function (done) {
+        instance.rename('map:another_old_key',
+          'map:another_new_key',
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals('OK');
+              extrnRedis.hgetall('map:another_new_key',
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.be.deep.equals(
+                      {
+                        fieldOne: 'valueOne',
+                        fieldThree: 'valueThree',
+                        fieldTwo: 'valueTwo'
+                      }
+                    );
+                    extrnMySql.query(
+                      'SELECT field, value ' +
+                      'FROM map_another_new_key ' +
+                      'WHERE field IN (?, ?, ?) ' +
+                      'ORDER BY field ASC',
+                      [
+                        'fieldOne',
+                        'fieldTwo',
+                        'fieldThree'
+                      ],
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result[0].field).to.be.equals('fieldOne');
+                          expect(result[0].value).to.be.equals('valueOne');
+                          expect(result[1].field).to.be.equals('fieldThree');
+                          expect(result[1].value).to.be.equals('valueThree');
+                          expect(result[2].field).to.be.equals('fieldTwo');
+                          expect(result[2].value).to.be.equals('valueTwo');
+                          done();
+                        }
+                      });
+                  }
+                });
+            }
+          });
+      });
+
+      after(function (done) {
+        _deleteData(
+          [
+            'str:another_type:another_old_key',
+            'str:another_type:another_new_key',
+            'lst:another_old_key',
+            'lst:another_new_key',
+            'set:another_old_key',
+            'set:another_new_key',
+            'zset:another_old_key',
+            'zset:another_new_key'
+          ],
+          [
+            'str_another_type',
+            'lst_another_old_key',
+            'lst_another_new_key',
+            'set_another_old_key',
+            'set_another_new_key',
+            'zset_another_old_key',
+            'zset_another_new_key'
+          ], function (err) {
+            if (err) {
+              done(err);
+            } else {
+              done();
+            }
+          });
       });
     });
 
