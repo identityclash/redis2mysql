@@ -4567,7 +4567,9 @@ describe('Redis2MySQL', function () {
             'set:another_old_key',
             'set:another_new_key',
             'zset:another_old_key',
-            'zset:another_new_key'
+            'zset:another_new_key',
+            'map:another_old_key',
+            'map:another_new_key'
           ],
           [
             'str_another_type',
@@ -4576,7 +4578,507 @@ describe('Redis2MySQL', function () {
             'set_another_old_key',
             'set_another_new_key',
             'zset_another_old_key',
-            'zset_another_new_key'
+            'zset_another_new_key',
+            'map_another_old_key',
+            'map_another_new_key'
+          ], function (err) {
+            if (err) {
+              done(err);
+            } else {
+              done();
+            }
+          });
+      });
+    });
+
+    describe('#expire()', function () {
+      before(function (done) {
+        var time;
+        async.series([
+          function (firstStringCb) {
+            extrnRedis.set('str:another_type:another_old_key', 'kiersey',
+              function (err) {
+                if (err) {
+                  firstStringCb(err);
+                } else {
+                  firstStringCb();
+                }
+              });
+          },
+          function (secondStringCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS `str_another_type` ' +
+              '(`' +
+              COLUMNS.KEY + '` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondStringCb(err);
+                } else {
+                  secondStringCb();
+                }
+              });
+          },
+          function (thirdStringCb) {
+            extrnMySql.query(
+              'INSERT INTO str_another_type (`key`, value) VALUES (?, ?)',
+              [
+                'another_old_key',
+                'kiersey'
+              ],
+              function (err) {
+                if (err) {
+                  thirdStringCb(err);
+                } else {
+                  thirdStringCb();
+                }
+              });
+          },
+          function (firstListCb) {
+            extrnRedis.multi()
+              .time()
+              .lpush('lst:another_old_key',
+              'valueOne',
+              'valueTwo')
+              .exec(function (err, result) {
+                if (err) {
+                  firstListCb(err);
+                } else {
+                  time = result[0][1][0] + result[0][1][1];
+                  firstListCb();
+                }
+              });
+          },
+          function (secondListCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS lst_another_old_key ' +
+              ' (' +
+              COLUMNS.SEQ + ' BIGINT PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondListCb(err);
+                } else {
+                  secondListCb();
+                }
+              });
+          },
+          function (thirdListCb) {
+            extrnMySql.query(
+              'INSERT INTO lst_another_old_key (time_sequence, value) ' +
+              'VALUES (?, ?) , (?, ?) ',
+              [
+                time,
+                'valueOne',
+                time + 1,
+                'valueTwo'
+              ],
+              function (err) {
+                if (err) {
+                  thirdListCb(err);
+                } else {
+                  thirdListCb();
+                }
+              });
+          },
+          function (firstSetCb) {
+            extrnRedis.sadd('set:another_old_key',
+              'memberOne',
+              'memberTwo',
+              'memberThree',
+              function (err) {
+                if (err) {
+                  firstSetCb(err);
+                } else {
+                  firstSetCb();
+                }
+              });
+          },
+          function (secondSetCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS set_another_old_key ' +
+              '(' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondSetCb(err);
+                } else {
+                  secondSetCb();
+                }
+              });
+          },
+          function (thirdSetCb) {
+            extrnMySql.query(
+              'INSERT INTO set_another_old_key (member) ' +
+              'VALUES (?), (?), (?) ',
+              [
+                'memberOne',
+                'memberTwo',
+                'memberThree'
+              ],
+              function (err) {
+                if (err) {
+                  thirdSetCb(err);
+                } else {
+                  thirdSetCb();
+                }
+              });
+          },
+          function (firstSortedSetCb) {
+            extrnRedis.zadd('zset:another_old_key',
+              90,
+              'memberOne',
+              80.34,
+              'memberTwo',
+              73.23,
+              'memberThree',
+              function (err) {
+                if (err) {
+                  firstSortedSetCb(err);
+                } else {
+                  firstSortedSetCb();
+                }
+              });
+          },
+          function (secondSortedSetCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS zset_another_old_key' +
+              '(' +
+              COLUMNS.SCORE + ' DOUBLE, ' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondSortedSetCb(err);
+                } else {
+                  secondSortedSetCb();
+                }
+              });
+          },
+          function (thirdSortedSetCb) {
+            extrnMySql.query(
+              'INSERT INTO zset_another_old_key (score, member) ' +
+              'VALUES (?, ?) , (?, ?), (?, ?) ',
+              [
+                90,
+                'memberOne',
+                80.34,
+                'memberTwo',
+                73.23,
+                'memberThree'
+              ],
+              function (err) {
+                if (err) {
+                  thirdSortedSetCb(err);
+                } else {
+                  thirdSortedSetCb();
+                }
+              });
+          },
+          function (firstHashCb) {
+            extrnRedis.hmset('map:another_old_key',
+              'fieldOne', 'valueOne',
+              'fieldTwo', 'valueTwo',
+              'fieldThree', 'valueThree',
+              function (err) {
+                if (err) {
+                  firstHashCb(err);
+                } else {
+                  firstHashCb();
+                }
+              });
+          },
+          function (secondHashCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS map_another_old_key ' +
+              '(`' +
+              COLUMNS.FIELD + '` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondHashCb(err);
+                } else {
+                  secondHashCb();
+                }
+              });
+          },
+          function (thirdHashCb) {
+            extrnMySql.query(
+              'INSERT INTO map_another_old_key (field, value) ' +
+              'VALUES (?, ?) , (?, ?), (?, ?) ',
+              [
+                'fieldOne', 'valueOne',
+                'fieldTwo', 'valueTwo',
+                'fieldThree', 'valueThree'
+              ],
+              function (err) {
+                if (err) {
+                  thirdHashCb(err);
+                } else {
+                  thirdHashCb();
+                }
+              });
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
+      it('should be able to expire a Redis type set', function (done) {
+        var expiryDuration = 120; // in seconds
+        instance.expire('str:another_type:another_old_key', expiryDuration,
+          function (err, result) {
+            var nowDateTime = new Date();
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(1);
+              extrnRedis.ttl('str:another_type:another_old_key',
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.be.gte(58).and.lte(expiryDuration);
+                    setTimeout(
+                      function () {
+                        extrnMySql.query(
+                          'SELECT `key`, expiry_date ' +
+                          'FROM expiry ' +
+                          'WHERE `key`= ? ',
+                          'str:another_type:another_old_key',
+                          function (err, result) {
+                            if (err) {
+                              done(err);
+                            } else {
+                              expect(result[0].key).to.be
+                                .equals('str:another_type:another_old_key');
+                              expect(result[0].expiry_date).to.satisfy(
+                                function (expireDt) {
+                                  console.log('expiry_date: ' + expireDt +
+                                    ' >= now(): ' + nowDateTime);
+                                  return (expireDt - nowDateTime) < 121000; // 120 sec ~~ 120000 millisec + tolerance of 1000millisec
+                                });
+                              done();
+                            }
+                          });
+                      }, 400);
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to expire a Redis type list', function (done) {
+        var expiryDuration = 120; // in seconds
+        instance.expire('lst:another_old_key', expiryDuration,
+          function (err, result) {
+            var nowDateTime = new Date();
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(1);
+              extrnRedis.ttl('lst:another_old_key',
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.be.gte(58).and.lte(expiryDuration);
+                    setTimeout(
+                      function () {
+                        extrnMySql.query(
+                          'SELECT `key`, expiry_date ' +
+                          'FROM expiry ' +
+                          'WHERE `key`= ? ',
+                          'lst:another_old_key',
+                          function (err, result) {
+                            if (err) {
+                              done(err);
+                            } else {
+                              expect(result[0].key).to.be
+                                .equals('lst:another_old_key');
+                              expect(result[0].expiry_date).to.satisfy(
+                                function (expireDt) {
+                                  console.log('expiry_date: ' + expireDt +
+                                    ' >= now(): ' + nowDateTime);
+                                  return (expireDt - nowDateTime) < 121000; // 120 sec ~~ 120000 millisec + tolerance of 1000millisec
+                                });
+                              done();
+                            }
+                          });
+                      }, 400);
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to expire a Redis type set', function (done) {
+        var expiryDuration = 120; // in seconds
+        instance.expire('set:another_old_key', expiryDuration,
+          function (err, result) {
+            var nowDateTime = new Date();
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(1);
+              extrnRedis.ttl('set:another_old_key',
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result).to.be.gte(58).and.lte(expiryDuration);
+                    setTimeout(
+                      function () {
+                        extrnMySql.query(
+                          'SELECT `key`, expiry_date ' +
+                          'FROM expiry ' +
+                          'WHERE `key`= ? ',
+                          'set:another_old_key',
+                          function (err, result) {
+                            if (err) {
+                              done(err);
+                            } else {
+                              expect(result[0].key).to.be
+                                .equals('set:another_old_key');
+                              expect(result[0].expiry_date).to.satisfy(
+                                function (expireDt) {
+                                  console.log('expiry_date: ' + expireDt +
+                                    ' >= now(): ' + nowDateTime);
+                                  return (expireDt - nowDateTime) < 121000; // 120 sec ~~ 120000 millisec + tolerance of 1000millisec
+                                });
+                              done();
+                            }
+                          });
+                      }, 400);
+                  }
+                });
+            }
+          });
+      });
+
+      it('should be able to expire a Redis type sorted set',
+        function (done) {
+          var expiryDuration = 120; // in seconds
+          instance.expire('zset:another_old_key', expiryDuration,
+            function (err, result) {
+              var nowDateTime = new Date();
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.equals(1);
+                extrnRedis.ttl('zset:another_old_key',
+                  function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result).to.be.gte(58).and.lte(expiryDuration);
+                      setTimeout(
+                        function () {
+                          extrnMySql.query(
+                            'SELECT `key`, expiry_date ' +
+                            'FROM expiry ' +
+                            'WHERE `key`= ? ',
+                            'zset:another_old_key',
+                            function (err, result) {
+                              if (err) {
+                                done(err);
+                              } else {
+                                expect(result[0].key).to.be
+                                  .equals('zset:another_old_key');
+                                expect(result[0].expiry_date).to.satisfy(
+                                  function (expireDt) {
+                                    console.log('expiry_date: ' + expireDt +
+                                      ' >= now(): ' + nowDateTime);
+                                    return (expireDt - nowDateTime) < 121000; // 120 sec ~~ 120000 millisec + tolerance of 1000millisec
+                                  });
+                                done();
+                              }
+                            });
+                        }, 400);
+                    }
+                  });
+              }
+            });
+        });
+
+      it('should be able to expire a Redis type hash',
+        function (done) {
+          var expiryDuration = 120; // in seconds ~ 2 minutes
+          instance.expire('map:another_old_key', expiryDuration,
+            function (err, result) {
+              var nowDateTime = new Date();
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.equals(1);
+                extrnRedis.ttl('map:another_old_key',
+                  function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result).to.be.gte(58).and.lte(expiryDuration);
+                      setTimeout(
+                        function () {
+                          extrnMySql.query(
+                            'SELECT `key`, expiry_date ' +
+                            'FROM expiry ' +
+                            'WHERE `key`= ? ',
+                            'map:another_old_key',
+                            function (err, result) {
+                              if (err) {
+                                done(err);
+                              } else {
+                                expect(result[0].key).to.be
+                                  .equals('map:another_old_key');
+                                expect(result[0].expiry_date).to.satisfy(
+                                  function (expireDt) {
+                                    console.log('expiry_date: ' + expireDt +
+                                      ' >= now(): ' + nowDateTime);
+                                    return (expireDt - nowDateTime) < 121000; // 120 sec ~~ 120000 millisec + tolerance of 1000millisec
+                                  });
+                                done();
+                              }
+                            });
+                        }, 400);
+                    }
+                  });
+              }
+            });
+        });
+
+      after(function (done) {
+        _deleteData(
+          [
+            'str:another_type:another_old_key',
+            'lst:another_old_key',
+            'set:another_old_key',
+            'zset:another_old_key',
+            'map:another_old_key'
+          ],
+          [
+            'str_another_type',
+            'lst_another_old_key',
+            'set_another_old_key',
+            'zset_another_old_key',
+            'map_another_old_key'
           ], function (err) {
             if (err) {
               done(err);
@@ -4648,45 +5150,338 @@ describe('Redis2MySQL', function () {
   });
   /* End Method Test*/
 
+  /* Concurrency Test */
+  describe('concurrency test', function () {
+
+    it.only('should be able to get the last correctly set value from ' +
+      'Redis type string', function (done) {
+      var instanceOne = new Redis2MySql({
+        redis: {
+          showFriendlyErrorStack: true
+        },
+        mysql: {
+          user: 'root',
+          database: connection.mysql.database,
+          charset: connection.mysql.charset
+        },
+        custom: {
+          datatypePrefix: {
+            string: 'str',
+            list: 'lst',
+            set: 'set',
+            sortedSet: 'zset',
+            hash: 'map'
+          }
+        }
+      }), instanceTwo = new Redis2MySql({
+        redis: {
+          showFriendlyErrorStack: true
+        },
+        mysql: {
+          user: 'root',
+          database: connection.mysql.database,
+          charset: connection.mysql.charset
+        },
+        custom: {
+          datatypePrefix: {
+            string: 'str',
+            list: 'lst',
+            set: 'set',
+            sortedSet: 'zset',
+            hash: 'map'
+          }
+        }
+      }), instanceThree = new Redis2MySql({
+        redis: {
+          showFriendlyErrorStack: true
+        },
+        mysql: {
+          user: 'root',
+          database: connection.mysql.database,
+          charset: connection.mysql.charset
+        },
+        custom: {
+          datatypePrefix: {
+            string: 'str',
+            list: 'lst',
+            set: 'set',
+            sortedSet: 'zset',
+            hash: 'map'
+          }
+        }
+      }), instanceFour = new Redis2MySql({
+        redis: {
+          showFriendlyErrorStack: true
+        },
+        mysql: {
+          user: 'root',
+          database: connection.mysql.database,
+          charset: connection.mysql.charset
+        },
+        custom: {
+          datatypePrefix: {
+            string: 'str',
+            list: 'lst',
+            set: 'set',
+            sortedSet: 'zset',
+            hash: 'map'
+          }
+        }
+      });
+
+      instanceOne.on('error', function (err) {
+        throw new Error('Error from listener: ' + err.error + ' ' + err.message +
+          ', key: ' + err.redisKey);
+      });
+
+      instanceTwo.on('error', function (err) {
+        throw new Error('Error from listener: ' + err.error + ' ' + err.message +
+          ', key: ' + err.redisKey);
+      });
+
+      instanceThree.on('error', function (err) {
+        throw new Error('Error from listener: ' + err.error + ' ' + err.message +
+          ', key: ' + err.redisKey);
+      });
+
+      instanceFour.on('error', function (err) {
+        throw new Error('Error from listener: ' + err.error + ' ' + err.message +
+          ', key: ' + err.redisKey);
+      });
+
+      async.map(
+        [
+          {
+            value: 'hello',
+            instance: instanceOne
+          },
+          {
+            value: 'world',
+            instance: instanceTwo
+          },
+          {
+            value: 'potpourri',
+            instance: instanceThree
+          }
+        ],
+        function (item, callback) {
+          item.instance.set('sometype', 'testkey', item.value, function (err, result) {
+            if (err) {
+              return callback(err);
+            }
+            return callback(null, result);
+          });
+        },
+        function (err) {
+          if (err) {
+            return done(err);
+          }
+
+          instanceFour.get('sometype', 'testkey', function (err, result) {
+            if (err) {
+              return done(err);
+            }
+            var redisResult = result;
+            setTimeout(
+              function () {
+                extrnMySql.query(
+                  'SELECT `key`, value FROM str_sometype ' +
+                  'WHERE `key` = ?',
+                  'testkey',
+                  function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      //expect(result[0].key).to.be.equals('testkey');
+                      console.log('expected: ' + redisResult + ', actual: ' + result[0].value);
+                      expect(result[0].value).to.be.equals(redisResult);
+                      done();
+                    }
+                  });
+              }, 400);
+          });
+        });
+    });
+
+    //it('should be able to get the last correctly set value from ' +
+    //  'Redis type list', function (done) {
+    //  var instanceOne = new Redis2MySql({
+    //    redis: {
+    //      showFriendlyErrorStack: true
+    //    },
+    //    mysql: {
+    //      user: 'root',
+    //      database: connection.mysql.database,
+    //      charset: connection.mysql.charset
+    //    },
+    //    custom: {
+    //      datatypePrefix: {
+    //        string: 'str',
+    //        list: 'lst',
+    //        set: 'set',
+    //        sortedSet: 'zset',
+    //        hash: 'map'
+    //      }
+    //    }
+    //  }), instanceTwo = new Redis2MySql({
+    //    redis: {
+    //      showFriendlyErrorStack: true
+    //    },
+    //    mysql: {
+    //      user: 'root',
+    //      database: connection.mysql.database,
+    //      charset: connection.mysql.charset
+    //    },
+    //    custom: {
+    //      datatypePrefix: {
+    //        string: 'str',
+    //        list: 'lst',
+    //        set: 'set',
+    //        sortedSet: 'zset',
+    //        hash: 'map'
+    //      }
+    //    }
+    //  }), instanceThree = new Redis2MySql({
+    //    redis: {
+    //      showFriendlyErrorStack: true
+    //    },
+    //    mysql: {
+    //      user: 'root',
+    //      database: connection.mysql.database,
+    //      charset: connection.mysql.charset
+    //    },
+    //    custom: {
+    //      datatypePrefix: {
+    //        string: 'str',
+    //        list: 'lst',
+    //        set: 'set',
+    //        sortedSet: 'zset',
+    //        hash: 'map'
+    //      }
+    //    }
+    //  }), instanceFour = new Redis2MySql({
+    //    redis: {
+    //      showFriendlyErrorStack: true
+    //    },
+    //    mysql: {
+    //      user: 'root',
+    //      database: connection.mysql.database,
+    //      charset: connection.mysql.charset
+    //    },
+    //    custom: {
+    //      datatypePrefix: {
+    //        string: 'str',
+    //        list: 'lst',
+    //        set: 'set',
+    //        sortedSet: 'zset',
+    //        hash: 'map'
+    //      }
+    //    }
+    //  });
+    //
+    //  instanceOne.on('error', function (err) {
+    //    throw new Error('Error from listener: ' + err.error + ' ' + err.message +
+    //      ', key: ' + err.redisKey);
+    //  });
+    //
+    //  instanceTwo.on('error', function (err) {
+    //    throw new Error('Error from listener: ' + err.error + ' ' + err.message +
+    //      ', key: ' + err.redisKey);
+    //  });
+    //
+    //  instanceThree.on('error', function (err) {
+    //    throw new Error('Error from listener: ' + err.error + ' ' + err.message +
+    //      ', key: ' + err.redisKey);
+    //  });
+    //
+    //  instanceFour.on('error', function (err) {
+    //    throw new Error('Error from listener: ' + err.error + ' ' + err.message +
+    //      ', key: ' + err.redisKey);
+    //  });
+    //
+    //  async.map(
+    //    [
+    //      {
+    //        value: 'hello',
+    //        instance: instanceOne
+    //      },
+    //      {
+    //        value: 'world',
+    //        instance: instanceTwo
+    //      },
+    //      {
+    //        value: 'potpourri',
+    //        instance: instanceThree
+    //      }
+    //    ],
+    //    function (item, callback) {
+    //      item.instance.lpush('some_data', item.value, function (err, result) {
+    //        if (err) {
+    //          callback(err);
+    //        } else {
+    //          callback(null, result);
+    //        }
+    //      });
+    //    },
+    //    function (err) {
+    //      if (err) {
+    //        done(err);
+    //      } else {
+    //        extrnRedis.lpop('some_data', function (err, result) {
+    //          if (err) {
+    //            return done(err);
+    //          }
+    //          expect(result).to.be.equals('potpourri');
+    //          return done();
+    //        });
+    //      }
+    //    });
+    //});
+
+  });
+  /* End Concurrency Test */
+
   /* Database and Connection Teardown */
   after(function (done) {
-    async.series([
-      function (firstCb) {
-        if (is.existy(extrnRedis)) {
-          extrnRedis.quit();
-          firstCb();
-        } else {
-          firstCb();
+    setTimeout(function () {
+      async.series([
+        function (firstCb) {
+          if (is.existy(extrnRedis)) {
+            extrnRedis.quit();
+            firstCb();
+          } else {
+            firstCb();
+          }
+        },
+        function (secondCb) {
+          if (is.existy(extrnMySql)) {
+            extrnMySql.query(
+              'DROP DATABASE IF EXISTS mytestxxx; ',
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  extrnMySql.end(function (err) {
+                    if (err) {
+                      secondCb(err);
+                    } else {
+                      secondCb();
+                    }
+                  });
+                }
+              });
+          } else {
+            secondCb();
+          }
         }
-      },
-      function (secondCb) {
-        if (is.existy(extrnMySql)) {
-          extrnMySql.query(
-            'DROP DATABASE IF EXISTS mytestxxx; ',
-            function (err) {
-              if (err) {
-                secondCb(err);
-              } else {
-                extrnMySql.end(function (err) {
-                  if (err) {
-                    secondCb(err);
-                  } else {
-                    secondCb();
-                  }
-                });
-              }
-            });
+      ], function (err) {
+        if (err) {
+          done(err);
         } else {
-          secondCb();
+          done();
         }
-      }
-    ], function (err) {
-      if (err) {
-        done(err);
-      } else {
-        done();
-      }
-    });
+      });
+    }, 400);
   });
   /* End Database and Connection Teardown */
 });
