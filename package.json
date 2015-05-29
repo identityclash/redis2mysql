@@ -16,7 +16,7 @@
   "dependencies": {
     "async": "0.9.x",
     "//" : {"redis": "0.10.x"},
-    "mysql": "2.6.x",
+    "mysql": "2.7.x",
     "ioredis": "1.3.x",
     "lazy.js": "0.4.x",
     "is_js": "0.7.x"
