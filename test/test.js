@@ -5089,11 +5089,11 @@ describe('Redis2MySQL', function () {
   /* End Method Test*/
 
   /* Concurrency Test */
-  describe.only('concurrency test', function () {
+  describe('concurrency test', function () {
 
     context('iterative testing for concurrency', function () {
 
-      for (var i = 0; i < 1; i++) {
+      for (var i = 0; i < 10; i++) {
         iterativeTest();
       }
 
@@ -5478,7 +5478,7 @@ describe('Redis2MySQL', function () {
                           expect(result[0].value).to.be.equals(redisResult);
                           secondCb();
                         });
-                    }, 100);
+                    }, 600);
                   }
                 ], function (err) {
                   for (i = 0; i < instances.length; i++) {
