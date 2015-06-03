@@ -1359,7 +1359,7 @@ describe('Redis2MySQL', function () {
               extrnMySql.query(
                 'CREATE TABLE IF NOT EXISTS lst_some_data ' +
                 ' (' +
-                COLUMNS.SEQ + ' BIGINT PRIMARY KEY, ' +
+                COLUMNS.SEQ + ' DOUBLE PRIMARY KEY, ' +
                 COLUMNS.VALUE + ' VARCHAR(255), ' +
                 COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
                 COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
@@ -1368,24 +1368,26 @@ describe('Redis2MySQL', function () {
                   if (err) {
                     done(err);
                   } else {
-                    var time;
+                    var time, sqlParams = [];
+
                     if (result[0][1][1].length > 0) { // result from Redis TIME command
-                      /* UNIX time in sec + microseconds */
-                      time = result[0][1][0] + result[0][1][1];
+                      /* UNIX time in sec + microseconds converted to seconds */
+                      time = result[0][1][0] + (result[0][1][1] / 1000000);
                     }
+
+                    sqlParams.push(time);
+                    sqlParams.push(300);
+                    sqlParams.push((parseFloat(time) + 0.00001));
+                    sqlParams.push('name1');
+                    sqlParams.push((parseFloat(time) + 0.00002));
+                    sqlParams.push('name2');
+                    sqlParams.push((parseFloat(time) + 0.00003));
+                    sqlParams.push('400');
+
                     extrnMySql.query(
                       'INSERT INTO lst_some_data (`time_sequence` , `value` ) ' +
                       'VALUES (?, ?), (?, ?), (?, ?), (?, ?) ',
-                      [
-                        time,
-                        300,
-                        time + 1,
-                        'name1',
-                        time + 2,
-                        'name2',
-                        time + 3,
-                        '400'
-                      ],
+                      sqlParams,
                       function (err) {
                         if (err) {
                           done(err);
@@ -1488,7 +1490,7 @@ describe('Redis2MySQL', function () {
               extrnMySql.query(
                 'CREATE TABLE IF NOT EXISTS lst_some_data ' +
                 ' (' +
-                COLUMNS.SEQ + ' BIGINT PRIMARY KEY, ' +
+                COLUMNS.SEQ + ' DOUBLE PRIMARY KEY, ' +
                 COLUMNS.VALUE + ' VARCHAR(255), ' +
                 COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
                 COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
@@ -1497,24 +1499,26 @@ describe('Redis2MySQL', function () {
                   if (err) {
                     done(err);
                   } else {
-                    var time;
+                    var time, sqlParams = [];
+
                     if (result[0][1][1].length > 0) { // result from Redis TIME command
                       /* UNIX time in sec + microseconds */
-                      time = result[0][1][0] + result[0][1][1];
+                      time = result[0][1][0] + (result[0][1][1] / 1000000);
                     }
+
+                    sqlParams.push(time);
+                    sqlParams.push(300);
+                    sqlParams.push((parseFloat(time) + 0.00001));
+                    sqlParams.push('name1');
+                    sqlParams.push((parseFloat(time) + 0.00002));
+                    sqlParams.push('name2');
+                    sqlParams.push((parseFloat(time) + 0.00003));
+                    sqlParams.push('400');
+
                     extrnMySql.query(
                       'INSERT INTO lst_some_data (`time_sequence` , `value` ) ' +
                       'VALUES (?, ?), (?, ?), (?, ?), (?, ?) ',
-                      [
-                        time,
-                        300,
-                        time + 1,
-                        'name1',
-                        time + 2,
-                        'name2',
-                        time + 3,
-                        '400'
-                      ],
+                      sqlParams,
                       function (err) {
                         if (err) {
                           done(err);
@@ -1615,7 +1619,7 @@ describe('Redis2MySQL', function () {
               extrnMySql.query(
                 'CREATE TABLE IF NOT EXISTS lst_some_data ' +
                 ' (' +
-                COLUMNS.SEQ + ' BIGINT PRIMARY KEY, ' +
+                COLUMNS.SEQ + ' DOUBLE PRIMARY KEY, ' +
                 COLUMNS.VALUE + ' VARCHAR(255), ' +
                 COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
                 COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
@@ -1624,24 +1628,26 @@ describe('Redis2MySQL', function () {
                   if (err) {
                     done(err);
                   } else {
-                    var time;
+                    var time, sqlParams = [];
+
                     if (result[0][1][1].length > 0) { // result from Redis TIME command
                       /* UNIX time in sec + microseconds */
-                      time = result[0][1][0] + result[0][1][1];
+                      time = result[0][1][0] + (result[0][1][1] / 1000000);
                     }
+
+                    sqlParams.push(time);
+                    sqlParams.push(300);
+                    sqlParams.push((parseFloat(time) + 0.00001));
+                    sqlParams.push('name1');
+                    sqlParams.push((parseFloat(time) + 0.00002));
+                    sqlParams.push('name2');
+                    sqlParams.push((parseFloat(time) + 0.00003));
+                    sqlParams.push('400');
+
                     extrnMySql.query(
                       'INSERT INTO lst_some_data (`time_sequence` , `value` ) ' +
                       'VALUES (?, ?), (?, ?), (?, ?), (?, ?) ',
-                      [
-                        time,
-                        300,
-                        time + 1,
-                        'name1',
-                        time + 2,
-                        'name2',
-                        time + 3,
-                        '400'
-                      ],
+                      sqlParams,
                       function (err) {
                         if (err) {
                           done(err);
@@ -5093,7 +5099,7 @@ describe('Redis2MySQL', function () {
 
     context('iterative testing for concurrency', function () {
 
-      for (var i = 0; i < 10; i++) {
+      for (var i = 0; i < 15; i++) {
         iterativeTest();
       }
 
@@ -5335,6 +5341,10 @@ describe('Redis2MySQL', function () {
           async.map(
             arrayInputs,
             function (item, callback) {
+              item.instance.on('error', function (err) {
+                console.log('Error from listener: ' + err.error + ' ' + err.message +
+                  ' ' + err.redisKey);
+              });
               item.instance.lpush('some_data', item.value, function (err, result) {
                 if (err) {
                   return callback(err);
