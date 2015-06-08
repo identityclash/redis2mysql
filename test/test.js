@@ -6038,8 +6038,8 @@ describe('Redis2MySQL', function () {
               });
           });
 
-        it('should be able to get the last correctly different ' +
-          'Redis type string values per Redis2Mysql connection',
+        it('should be able to get different Redis type string values ' +
+          'for different Redis2Mysql connection',
           function (done) {
             var arrayInputs = [], separateInstance, instance, instances = [],
               values, i;
