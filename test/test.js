@@ -3476,6 +3476,43 @@ describe('Redis2MySQL', function () {
             });
         });
 
+      it('should be able to add one key-value in a hash',
+        function (done) {
+          instance.hmset('somename',
+            'oneField', 'oneValue',
+            function (err, result) {
+              if (err) {
+                return done(err);
+              }
+              expect(result).to.be.equals('OK');
+              extrnRedis.hget('map:somename',
+                'oneField',
+                function (err, result) {
+                  if (err) {
+                    return done(err);
+                  }
+                  expect(result).equals('oneValue');
+                  setTimeout(
+                    function () {
+                      extrnMySql.query(
+                        'SELECT field, value ' +
+                        'FROM map_somename ' +
+                        'WHERE field = ? ' +
+                        'ORDER BY field ASC',
+                        'oneField',
+                        function (err, result) {
+                          if (err) {
+                            return done(err);
+                          }
+                          expect(result[0].field).to.be.equals('oneField');
+                          expect(result[0].value).to.be.equals('oneValue');
+                          done();
+                        });
+                    }, 400);
+                });
+            });
+        });
+
       afterEach(function (done) {
         _deleteData(['map:somename'], ['map_somename'], function (err) {
           if (err) {
@@ -5833,6 +5870,174 @@ describe('Redis2MySQL', function () {
             });
         });
 
+        it('should be able to get all the added Redis type hash values',
+          function (done) {
+
+            var arrayInputs = [], separateInstance, instance, instances = [],
+              values, i, tempField;
+
+            separateInstance = new Redis2MySql({
+              redis: {
+                showFriendlyErrorStack: true
+              },
+              mysql: {
+                user: 'root',
+                database: connection.mysql.database,
+                charset: connection.mysql.charset
+              },
+              custom: {
+                datatypePrefix: {
+                  string: 'str',
+                  list: 'lst',
+                  set: 'set',
+                  sortedSet: 'zset',
+                  hash: 'map'
+                }
+              }
+            });
+
+            values =
+              [
+                [1, 'alpha'], // 1
+                [2, 'bravo'], // 2
+                [3, 'charlie'], // 3
+                [4, 'delta'], // 4
+                [5, 'echo'], // 5
+                [6, 'foxtrot'], // 6
+                [7, 'golf'], // 7
+                [8, 'hotel'], // 8
+                [9, 'india'], // 9
+                [10, 'juliet'], // 10
+                [11, 'kilo'], // 11
+                [12, 'lima'], // 12
+                [13, 'mike'], // 13
+                [14, 'november'], // 14
+                [15, 'oscar'], // 15
+                [16, 'papa'], // 16
+                [17, 'quebec'], // 17
+                [18, 'romeo'], // 18
+                [19, 'sierra'], // 19
+                [20, 'tango'], // 20
+                [21, 'uniform'], // 21
+                [22, 'victor'], // 22
+                [23, 'whiskey'], // 23
+                [24, 'xray'], // 24
+                [25, 'yankee'], // 25
+                [26, 'zulu'], // 26
+                [27, 'twenty-seven'], // 27
+                [28, 'twenty-eight'], // 28
+                [29, 'twenty-nine'], // 29
+                [30, 'thirty'], // 30
+                [31, 'thirty-one'] // 31
+              ];
+
+            for (i = 0; i < values.length; i++) {
+              instance = new Redis2MySql({
+                redis: {
+                  showFriendlyErrorStack: true
+                },
+                mysql: {
+                  user: 'root',
+                  database: connection.mysql.database,
+                  charset: connection.mysql.charset
+                },
+                custom: {
+                  datatypePrefix: {
+                    string: 'str',
+                    list: 'lst',
+                    set: 'set',
+                    sortedSet: 'zset',
+                    hash: 'map'
+                  }
+                }
+              });
+
+              arrayInputs.push({value: values[i], instance: instance});
+              instances.push(instance);
+            }
+
+            async.map(
+              arrayInputs,
+              function (item, callback) {
+                item.instance.hmset('somename', item.value, function (err, result) {
+                  if (err) {
+                    return callback(err);
+                  }
+                  callback(null, result);
+                });
+              },
+              function (err) {
+                if (err) {
+                  return done(err);
+                }
+
+                async.waterfall(
+                  [
+                    function (firstCb) {
+                      separateInstance
+                        .hgetall('somename', function (err, result) {
+                          if (err) {
+                            return firstCb(err);
+                          }
+                          firstCb(null, result);
+                        });
+                    },
+                    function (redisResult, secondCb) {
+                      setTimeout(function () {
+                        extrnMySql.query(
+                          'SELECT field, value ' +
+                          'FROM map_somename ' +
+                          '',
+                          function (err, result) {
+                            if (err) {
+                              return secondCb(err);
+                            }
+                            var i, sqlFields = [], sqlValues = [],
+                              redisFields = [], redisValues = [],
+                              sqlFieldValues = [], redisFieldValues = [];
+                            for (i = 0; i < result.length; i++) {
+                              if (is.existy(result[i].field)) {
+                                sqlFields.push(result[i].field);
+                                sqlValues.push(result[i].value);
+                                sqlFieldValues.push(result[i].field);
+                                sqlFieldValues.push(result[i].value);
+                              }
+                            }
+                            for (tempField in redisResult) {
+                              if (redisResult.hasOwnProperty(tempField)) {
+                                redisFields.push(tempField);
+                                redisValues.push(redisResult[tempField]);
+                                redisFieldValues.push(tempField);
+                                redisFieldValues.push(redisResult[tempField]);
+                              }
+                            }
+
+                            console.log('expected: ' + sqlFieldValues + '\n actual: ' + redisFieldValues + '\n');
+                            for (i = 0; i < sqlFields.length; i++) {
+                              expect(redisFields).contains(sqlFields[i]);
+                            }
+                            for (i = 0; i < sqlValues.length; i++) {
+                              expect(redisValues).contains(sqlValues[i]);
+                            }
+                            secondCb();
+                          });
+                      }, 600);
+                    }
+                  ], function (err) {
+                    for (i = 0; i < instances.length; i++) {
+                      if (instances[i]) {
+                        instances[i].quit();
+                      }
+                    }
+                    if (err) {
+                      return done(err);
+                    }
+                    separateInstance.quit();
+                    done();
+                  });
+              });
+          });
+
         it('should be able to get the last correctly different ' +
           'Redis type string values per Redis2Mysql connection',
           function (done) {
@@ -6010,7 +6215,8 @@ describe('Redis2MySQL', function () {
             'str_somenumtype',
             'lst_some_data',
             'set_some_data',
-            'zset_ssgrade'
+            'zset_ssgrade',
+            'map_somename'
           ],
           function (err) {
             if (err) {
