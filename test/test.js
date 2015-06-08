@@ -186,7 +186,7 @@ describe('Redis2MySQL', function () {
 
       it('should possess `mysqlConn` which will make a connection',
         function (done) {
-          instance.mysqlConn.ping(function (err, result) {
+          instance.mysqlReadConn.ping(function (err, result) {
             expect(result).to.be.an.instanceOf(OkPacket);
             done();
           });
@@ -5095,7 +5095,7 @@ describe('Redis2MySQL', function () {
   /* End Method Test*/
 
   /* Concurrency Test */
-  describe.only('concurrency test', function () {
+  describe('concurrency test', function () {
 
     context('iterative testing for concurrency', function () {
 
