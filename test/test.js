@@ -5095,18 +5095,28 @@ describe('Redis2MySQL', function () {
   /* End Method Test*/
 
   /* Concurrency Test */
-  describe('concurrency test', function () {
+  describe.only('concurrency test', function () {
 
     context('iterative testing for concurrency', function () {
 
-      for (var i = 0; i < 15; i++) {
-        iterativeTest();
-      }
+      var count = 0;
+
+      async.whilst(
+        function () {
+          return count < 10;
+        },
+        function (callback) {
+          count++;
+          iterativeTest();
+          callback(null);
+        },
+        function () {
+        });
 
       function iterativeTest() {
 
-        it('should be able to get the last correctly set value from ' +
-          'Redis type string', function (done) {
+        it('should be able to get the last correctly set Redis type string ' +
+          'values', function (done) {
 
           var arrayInputs = [], separateInstance, instance, instances = [],
             values, i;
@@ -5252,8 +5262,8 @@ describe('Redis2MySQL', function () {
             });
         });
 
-        it('should be able to get the last correctly set value from ' +
-          'Redis type list', function (done) {
+        it('should be able to get the last correctly set Redis type list ' +
+          'values', function (done) {
 
           var arrayInputs = [], separateInstance, instance, instances = [],
             values, i;
@@ -5399,32 +5409,12 @@ describe('Redis2MySQL', function () {
             });
         });
 
-        it('should be able to get increment properly', function (done) {
+        it('should be able to get increment properly a Redis key',
+          function (done) {
 
-          var arrayInputs = [], separateInstance, instance, instances = [], i;
+            var arrayInputs = [], separateInstance, instance, instances = [], i;
 
-          separateInstance = new Redis2MySql({
-            redis: {
-              showFriendlyErrorStack: true
-            },
-            mysql: {
-              user: 'root',
-              database: connection.mysql.database,
-              charset: connection.mysql.charset
-            },
-            custom: {
-              datatypePrefix: {
-                string: 'str',
-                list: 'lst',
-                set: 'set',
-                sortedSet: 'zset',
-                hash: 'map'
-              }
-            }
-          });
-
-          for (i = 0; i < 31; i++) {
-            instance = new Redis2MySql({
+            separateInstance = new Redis2MySql({
               redis: {
                 showFriendlyErrorStack: true
               },
@@ -5444,218 +5434,239 @@ describe('Redis2MySQL', function () {
               }
             });
 
-            arrayInputs.push({value: 'testcounter', instance: instance});
-            instances.push(instance);
-          }
-
-          async.map(
-            arrayInputs,
-            function (item, callback) {
-              item.instance.incr('somenumtype', item.value, function (err, result) {
-                if (err) {
-                  return callback(err);
+            for (i = 0; i < 31; i++) {
+              instance = new Redis2MySql({
+                redis: {
+                  showFriendlyErrorStack: true
+                },
+                mysql: {
+                  user: 'root',
+                  database: connection.mysql.database,
+                  charset: connection.mysql.charset
+                },
+                custom: {
+                  datatypePrefix: {
+                    string: 'str',
+                    list: 'lst',
+                    set: 'set',
+                    sortedSet: 'zset',
+                    hash: 'map'
+                  }
                 }
-                callback(null, result);
               });
-            },
-            function (err) {
-              if (err) {
-                return done(err);
-              }
 
-              async.waterfall(
-                [
-                  function (firstCb) {
-                    separateInstance
-                      .get('somenumtype', 'testcounter', function (err, result) {
-                        if (err) {
-                          return firstCb(err);
-                        }
-                        firstCb(null, result);
-                      });
-                  },
-                  function (redisResult, secondCb) {
-                    setTimeout(function () {
-                      extrnMySql.query(
-                        'SELECT `key`, value FROM str_somenumtype ' +
-                        'WHERE `key` = ?',
-                        'testcounter',
-                        function (err, result) {
-                          if (err) {
-                            return secondCb(err);
-                          }
-                          console.log('actual: ' + result[0].value + ', reference: ' + redisResult);
-                          expect(result[0].value).to.be.equals(redisResult);
-                          secondCb();
-                        });
-                    }, 600);
-                  }
-                ], function (err) {
-                  for (i = 0; i < instances.length; i++) {
-                    if (instances[i]) {
-                      instances[i].quit();
-                    }
-                  }
+              arrayInputs.push({value: 'testcounter', instance: instance});
+              instances.push(instance);
+            }
+
+            async.map(
+              arrayInputs,
+              function (item, callback) {
+                item.instance.incr('somenumtype', item.value, function (err, result) {
                   if (err) {
-                    return done(err);
+                    return callback(err);
                   }
-                  separateInstance.quit();
-                  done();
+                  callback(null, result);
                 });
-            });
-        });
-
-        it('should be able to get all the added values from ' +
-          'Redis type set', function (done) {
-
-          var arrayInputs = [], separateInstance, instance, instances = [],
-            values, i;
-
-          separateInstance = new Redis2MySql({
-            redis: {
-              showFriendlyErrorStack: true
-            },
-            mysql: {
-              user: 'root',
-              database: connection.mysql.database,
-              charset: connection.mysql.charset
-            },
-            custom: {
-              datatypePrefix: {
-                string: 'str',
-                list: 'lst',
-                set: 'set',
-                sortedSet: 'zset',
-                hash: 'map'
-              }
-            }
-          });
-
-          values =
-            [
-              'alpha_1', // 1
-              'bravo_2', // 2
-              'charlie_3', // 3
-              'delta_4', // 4
-              'echo_5', // 5
-              'foxtrot_6', // 6
-              'golf_7', // 7
-              'hotel_8', // 8
-              'india_9', // 9
-              'juliet_10', // 10
-              'kilo_11', // 11
-              'lima_12', // 12
-              'mike_13', // 13
-              'november_14', // 14
-              'oscar_15', // 15
-              'papa_16', // 16
-              'quebec_17', // 17
-              'romeo_18', // 18
-              'sierra_19', // 19
-              'tango_20', // 20
-              'uniform_21', // 21
-              'victor_22', // 22
-              'whiskey_23', // 23
-              'xray_24', // 24
-              'yankee_25', // 25
-              'zulu_26', // 26
-              'twenty-seven_27', // 27
-              'twenty-eight_28', // 28
-              'twenty-nine_29', // 29
-              'thirty_30', // 30
-              'thirty-one_31' // 31
-            ];
-
-          for (i = 0; i < values.length; i++) {
-            instance = new Redis2MySql({
-              redis: {
-                showFriendlyErrorStack: true
               },
-              mysql: {
-                user: 'root',
-                database: connection.mysql.database,
-                charset: connection.mysql.charset
-              },
-              custom: {
-                datatypePrefix: {
-                  string: 'str',
-                  list: 'lst',
-                  set: 'set',
-                  sortedSet: 'zset',
-                  hash: 'map'
-                }
-              }
-            });
-
-            arrayInputs.push({value: values[i], instance: instance});
-            instances.push(instance);
-          }
-
-          async.map(
-            arrayInputs,
-            function (item, callback) {
-              var members = item.value.split('_'); // just to add two members
-              item.instance.sadd('some_data', members, function (err, result) {
+              function (err) {
                 if (err) {
-                  return callback(err);
+                  return done(err);
                 }
-                callback(null, result);
-              });
-            },
-            function (err) {
-              if (err) {
-                return done(err);
-              }
 
-              async.waterfall(
-                [
-                  function (firstCb) {
-                    separateInstance
-                      .smembers('some_data', function (err, result) {
-                        if (err) {
-                          return firstCb(err);
-                        }
-                        firstCb(null, result);
-                      });
-                  },
-                  function (redisResult, secondCb) {
-                    setTimeout(function () {
-                      extrnMySql.query(
-                        'SELECT member ' +
-                        'FROM set_some_data ',
-                        function (err, result) {
+                async.waterfall(
+                  [
+                    function (firstCb) {
+                      separateInstance
+                        .get('somenumtype', 'testcounter', function (err, result) {
                           if (err) {
-                            return secondCb(err);
+                            return firstCb(err);
                           }
-                          var i, members = [];
-                          for (i = 0; i < result.length; i++) {
-                            if (is.existy(result[i].member)) {
-                              members.push(result[i].member);
+                          firstCb(null, result);
+                        });
+                    },
+                    function (redisResult, secondCb) {
+                      setTimeout(function () {
+                        extrnMySql.query(
+                          'SELECT `key`, value FROM str_somenumtype ' +
+                          'WHERE `key` = ?',
+                          'testcounter',
+                          function (err, result) {
+                            if (err) {
+                              return secondCb(err);
                             }
-                          }
-                          console.log('actual: ' + members + ', reference: ' + redisResult);
-                          expect(members).to.have.members(redisResult);
-                          secondCb();
-                        });
-                    }, 600);
-                  }
-                ], function (err) {
-                  for (i = 0; i < instances.length; i++) {
-                    if (instances[i]) {
-                      instances[i].quit();
+                            console.log('actual: ' + result[0].value + ', reference: ' + redisResult);
+                            expect(result[0].value).to.be.equals(redisResult);
+                            secondCb();
+                          });
+                      }, 600);
                     }
-                  }
-                  if (err) {
-                    return done(err);
-                  }
-                  separateInstance.quit();
-                  done();
-                });
-            });
-        });
+                  ], function (err) {
+                    for (i = 0; i < instances.length; i++) {
+                      if (instances[i]) {
+                        instances[i].quit();
+                      }
+                    }
+                    if (err) {
+                      return done(err);
+                    }
+                    separateInstance.quit();
+                    done();
+                  });
+              });
+          });
 
-        it('should be able to get all the added values from ' +
-          'Redis type sorted set in order of score', function (done) {
+        it('should be able to get all the added Redis type set values',
+          function (done) {
+
+            var arrayInputs = [], separateInstance, instance, instances = [],
+              values, i;
+
+            separateInstance = new Redis2MySql({
+              redis: {
+                showFriendlyErrorStack: true
+              },
+              mysql: {
+                user: 'root',
+                database: connection.mysql.database,
+                charset: connection.mysql.charset
+              },
+              custom: {
+                datatypePrefix: {
+                  string: 'str',
+                  list: 'lst',
+                  set: 'set',
+                  sortedSet: 'zset',
+                  hash: 'map'
+                }
+              }
+            });
+
+            values =
+              [
+                'alpha_1', // 1
+                'bravo_2', // 2
+                'charlie_3', // 3
+                'delta_4', // 4
+                'echo_5', // 5
+                'foxtrot_6', // 6
+                'golf_7', // 7
+                'hotel_8', // 8
+                'india_9', // 9
+                'juliet_10', // 10
+                'kilo_11', // 11
+                'lima_12', // 12
+                'mike_13', // 13
+                'november_14', // 14
+                'oscar_15', // 15
+                'papa_16', // 16
+                'quebec_17', // 17
+                'romeo_18', // 18
+                'sierra_19', // 19
+                'tango_20', // 20
+                'uniform_21', // 21
+                'victor_22', // 22
+                'whiskey_23', // 23
+                'xray_24', // 24
+                'yankee_25', // 25
+                'zulu_26', // 26
+                'twenty-seven_27', // 27
+                'twenty-eight_28', // 28
+                'twenty-nine_29', // 29
+                'thirty_30', // 30
+                'thirty-one_31' // 31
+              ];
+
+            for (i = 0; i < values.length; i++) {
+              instance = new Redis2MySql({
+                redis: {
+                  showFriendlyErrorStack: true
+                },
+                mysql: {
+                  user: 'root',
+                  database: connection.mysql.database,
+                  charset: connection.mysql.charset
+                },
+                custom: {
+                  datatypePrefix: {
+                    string: 'str',
+                    list: 'lst',
+                    set: 'set',
+                    sortedSet: 'zset',
+                    hash: 'map'
+                  }
+                }
+              });
+
+              arrayInputs.push({value: values[i], instance: instance});
+              instances.push(instance);
+            }
+
+            async.map(
+              arrayInputs,
+              function (item, callback) {
+                var members = item.value.split('_'); // just to add two members
+                item.instance.sadd('some_data', members, function (err, result) {
+                  if (err) {
+                    return callback(err);
+                  }
+                  callback(null, result);
+                });
+              },
+              function (err) {
+                if (err) {
+                  return done(err);
+                }
+
+                async.waterfall(
+                  [
+                    function (firstCb) {
+                      separateInstance
+                        .smembers('some_data', function (err, result) {
+                          if (err) {
+                            return firstCb(err);
+                          }
+                          firstCb(null, result);
+                        });
+                    },
+                    function (redisResult, secondCb) {
+                      setTimeout(function () {
+                        extrnMySql.query(
+                          'SELECT member ' +
+                          'FROM set_some_data ',
+                          function (err, result) {
+                            if (err) {
+                              return secondCb(err);
+                            }
+                            var i, members = [];
+                            for (i = 0; i < result.length; i++) {
+                              if (is.existy(result[i].member)) {
+                                members.push(result[i].member);
+                              }
+                            }
+                            console.log('actual: ' + members + ', reference: ' + redisResult);
+                            expect(members).to.have.members(redisResult);
+                            secondCb();
+                          });
+                      }, 600);
+                    }
+                  ], function (err) {
+                    for (i = 0; i < instances.length; i++) {
+                      if (instances[i]) {
+                        instances[i].quit();
+                      }
+                    }
+                    if (err) {
+                      return done(err);
+                    }
+                    separateInstance.quit();
+                    done();
+                  });
+              });
+          });
+
+        it('should be able to get all the added Redis type sorted set values ' +
+          'in order of score', function (done) {
 
           var arrayInputs = [], separateInstance, instance, instances = [],
             values, i;
@@ -5682,37 +5693,37 @@ describe('Redis2MySQL', function () {
 
           values =
             [
-              [19.90, 'alpha', 11, 'thirty'], // 1
-              [17.60, 'bravo', 12, 'thirty-one'], // 2
-              [14.50, 'charlie', 13, 'alpha'], // 3
-              [11.03, 'delta', 14, 'bravo'], // 4
-              [18.40, 'echo', 15, 'charlie'], // 5
-              [3.09, 'foxtrot', 16, 'delta'], // 6
-              [12.47, 'golf', 17, 'echo'], // 7
-              [20.283, 'hotel', 18, 'foxtrot'], // 8
-              [10.40, 'india', 19, 'golf'], // 9
-              [17.50, 'juliet', 20, 'hotel'], // 10
-              [16.77, 'kilo', 21, 'india'], // 11
-              [15.49, 'lima', 22, 'juliet'], // 12
-              [13.59, 'mike', 23, 'kilo'], // 13
-              [11.40, 'november', 24, 'lima'], // 14
-              [18.58, 'oscar', 25, 'mike'], // 15
-              [17.49, 'papa', 26, 'november'], // 16
-              [14.39, 'quebec', 27, 'oscar'], // 17
-              [11.40, 'romeo', 28, 'papa'], // 18
-              [16.05, 'sierra', 29, 'quebec'], // 19
-              [19.47, 'tango', 30, 'romeo'], // 20
-              [15.32, 'uniform', 31, 'sierra'], // 21
-              [6.30, 'victor', 32, 'tango'], // 22
-              [9.40, 'whiskey', 33, 'uniform'], // 23
-              [11.30, 'xray', 34, 'victor'], // 24
-              [16.10, 'yankee', 35, 'whiskey'], // 25
-              [17.40, 'zulu', 36, 'xray'], // 26
-              [9.90, 'twenty-seven', 37, 'yankee'], // 27
-              [20.30, 'twenty-eight', 38, 'zulu'], // 28
-              [13.04, 'twenty-nine', 39, 'twenty-seven'], // 29
-              [12.77, 'thirty', 40, 'twenty-eight'], // 30
-              [10, 'thirty-one', 41, 'twenty-nine'] // 31
+              [1, 'alpha'], // 1
+              [2, 'bravo'], // 2
+              [3, 'charlie'], // 3
+              [4, 'delta'], // 4
+              [5, 'echo'], // 5
+              [6, 'foxtrot'], // 6
+              [7, 'golf'], // 7
+              [8, 'hotel'], // 8
+              [9, 'india'], // 9
+              [10, 'juliet'], // 10
+              [11, 'kilo'], // 11
+              [12, 'lima'], // 12
+              [13, 'mike'], // 13
+              [14, 'november'], // 14
+              [15, 'oscar'], // 15
+              [16, 'papa'], // 16
+              [17, 'quebec'], // 17
+              [18, 'romeo'], // 18
+              [19, 'sierra'], // 19
+              [20, 'tango'], // 20
+              [21, 'uniform'], // 21
+              [22, 'victor'], // 22
+              [23, 'whiskey'], // 23
+              [24, 'xray'], // 24
+              [25, 'yankee'], // 25
+              [26, 'zulu'], // 26
+              [27, 'twenty-seven'], // 27
+              [28, 'twenty-eight'], // 28
+              [29, 'twenty-nine'], // 29
+              [30, 'thirty'], // 30
+              [31, 'thirty-one'] // 31
             ];
 
           for (i = 0; i < values.length; i++) {
@@ -5759,7 +5770,7 @@ describe('Redis2MySQL', function () {
                 [
                   function (firstCb) {
                     separateInstance
-                      .zrangebyscore('ssgrade', '0', '50', 'withscores', null,
+                      .zrangebyscore('ssgrade', '0', '63', 'withscores', null,
                       null, null, function (err, result) {
                         if (err) {
                           return firstCb(err);
@@ -5821,6 +5832,175 @@ describe('Redis2MySQL', function () {
                 });
             });
         });
+
+        it('should be able to get the last correctly different ' +
+          'Redis type string values per Redis2Mysql connection',
+          function (done) {
+            var arrayInputs = [], separateInstance, instance, instances = [],
+              values, i;
+
+            separateInstance = new Redis2MySql({
+              redis: {
+                showFriendlyErrorStack: true
+              },
+              mysql: {
+                user: 'root',
+                database: connection.mysql.database,
+                charset: connection.mysql.charset
+              },
+              custom: {
+                datatypePrefix: {
+                  string: 'str',
+                  list: 'lst',
+                  set: 'set',
+                  sortedSet: 'zset',
+                  hash: 'map'
+                }
+              }
+            });
+
+            values =
+              [
+                'alpha', // 1
+                'bravo', // 2
+                'charlie', // 3
+                'delta', // 4
+                'echo', // 5
+                'foxtrot', // 6
+                'golf', // 7
+                'hotel', // 8
+                'india', // 9
+                'juliet', // 10
+                'kilo', // 11
+                'lima', // 12
+                'mike', // 13
+                'november', // 14
+                'oscar', // 15
+                'papa', // 16
+                'quebec', // 17
+                'romeo', // 18
+                'sierra', // 19
+                'tango', // 20
+                'uniform', // 21
+                'victor', // 22
+                'whiskey', // 23
+                'xray', // 24
+                'yankee', // 25
+                'zulu', // 26
+                'twenty-seven', // 27
+                'twenty-eight', // 28
+                'twenty-nine', // 29
+                'thirty', // 30
+                'thirty-one' // 31
+              ];
+
+            for (i = 0; i < values.length; i++) {
+              instance = new Redis2MySql({
+                redis: {
+                  showFriendlyErrorStack: true
+                },
+                mysql: {
+                  user: 'root',
+                  database: connection.mysql.database,
+                  charset: connection.mysql.charset
+                },
+                custom: {
+                  datatypePrefix: {
+                    string: 'str',
+                    list: 'lst',
+                    set: 'set',
+                    sortedSet: 'zset',
+                    hash: 'map'
+                  }
+                }
+              });
+
+              arrayInputs.push({value: values[i], instance: instance});
+              instances.push(instance);
+            }
+
+            async.map(
+              arrayInputs,
+              function (item, callback) {
+                item.instance.on('error', function (err) {
+                  console.log('Error from listener: ' + err.error + ' ' + err.message +
+                    ' ' + err.redisKey);
+                });
+                item.instance.set('sometype', item.value, item.value,
+                  function (err, result) {
+                    if (err) {
+                      return callback(err);
+                    }
+                    callback(null, result);
+                  });
+              },
+              function (err) {
+                if (err) {
+                  return done(err);
+                }
+
+                async.waterfall(
+                  [
+                    function (firstCb) {
+                      extrnRedis.mget(
+                        'str:sometype:alpha', // 1
+                        'str:sometype:bravo', // 2
+                        'str:sometype:charlie', // 3
+                        'str:sometype:delta', // 4
+                        'str:sometype:echo', // 5
+                        'str:sometype:foxtrot', // 6
+                        'str:sometype:golf', // 7
+                        'str:sometype:hotel', // 8
+                        'str:sometype:india', // 9
+                        'str:sometype:juliet', // 10
+                        'str:sometype:kilo', // 11
+                        'str:sometype:lima', // 12
+                        'str:sometype:mike', // 13
+                        'str:sometype:november', // 14
+                        'str:sometype:oscar', // 15
+                        function (err, result) {
+                          if (err) {
+                            return firstCb(err);
+                          }
+                          firstCb(null, result);
+                        });
+                    },
+                    function (redisResult, secondCb) {
+                      setTimeout(function () {
+                        extrnMySql.query(
+                          'SELECT value FROM str_sometype ' +
+                          'WHERE `key` IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ' +
+                          '?, ?, ?, ?) ORDER BY `key` ASC',
+                          values,
+                          function (err, result) {
+                            if (err) {
+                              return secondCb(err);
+                            }
+
+                            var sqlResult = [];
+                            for (i = 0; i < result.length; i++) {
+                              sqlResult.push(result[i].value);
+                            }
+
+                            expect(sqlResult).to.be.deep.equals(redisResult);
+                            secondCb();
+                          });
+                      }, 600);
+                    }
+                  ], function (err) {
+                    for (i = 0; i < instances.length; i++) {
+                      if (instances[i]) {
+                        instances[i].quit();
+                      }
+                    }
+                    if (err) {
+                      return done(err);
+                    }
+                    separateInstance.quit();
+                    done();
+                  });
+              });
+          });
       }
 
       afterEach(function (done) {
