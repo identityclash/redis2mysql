@@ -404,8 +404,7 @@ describe('Redis2MySQL', function () {
               hash: 'map'
             }
           }
-        }
-      );
+        });
       instance.on('error', function (err) {
         throw new Error('Error from listener: ' + err.error + ' ' + err.message +
           ' ' + err.redisKey);
@@ -6280,12 +6279,14 @@ describe('Redis2MySQL', function () {
     setTimeout(function () {
       async.series([
         function (firstCb) {
-          if (is.existy(extrnRedis)) {
+          extrnRedis.flushall(function (err) {
             extrnRedis.quit();
-            firstCb();
-          } else {
-            firstCb();
-          }
+            if (err) {
+              firstCb(err);
+            } else {
+              firstCb();
+            }
+          });
         },
         function (secondCb) {
           if (is.existy(extrnMySql)) {
