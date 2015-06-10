@@ -15,7 +15,6 @@ client.onopen = function () {
   console.log('connected');
   client.send(JSON.stringify(
     {
-      object: 'Redis2MySql',
       command: 'set',
       params: [
         'sometype',
@@ -24,7 +23,6 @@ client.onopen = function () {
     }));
   client.send(JSON.stringify(
     {
-      object: 'Redis2MySql',
       command: 'get',
       params: [
         'sometype',
@@ -33,7 +31,6 @@ client.onopen = function () {
     }));
   client.send(JSON.stringify(
     {
-      object: 'Redis2MySql',
       command: 'incr',
       params: [
         'sometype',
@@ -42,7 +39,6 @@ client.onopen = function () {
     }));
   client.send(JSON.stringify(
     {
-      object: 'Redis2MySql',
       command: 'get',
       params: [
         'sometype',
@@ -52,7 +48,6 @@ client.onopen = function () {
   setTimeout(function () {
     client.send(JSON.stringify(
       {
-        object: 'Redis2MySql',
         command: 'del',
         params: ['str:sometype:somekey']
       }));

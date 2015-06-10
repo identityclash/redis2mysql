@@ -5,8 +5,6 @@
 
 var
   is = require('is_js'),
-  async = require('async'),
-  Redis = require('ioredis'),
   mysql = require('mysql'),
   Redis2MySql = require('../../lib/Redis2MySql'),
   http = require('http'),
@@ -51,6 +49,11 @@ var
 
 instance.createUseSchema();
 
+instance.on('error', function (err) {
+  throw new Error('Error from listener: ' + err.error + ' ' + err.message +
+    ' ' + err.redisKey);
+});
+
 sockjsServer.installHandlers(webServer);//, {prefix:'/echo/websocket'});
 webServer.listen(9999, '0.0.0.0'); // 8081
 
@@ -69,15 +72,18 @@ sockjsServer.on('connection', function (conn) {
   conn.on('data', function (message) {
     console.log('message ' + conn, message);
 
-    var dataKey, ctx, fnArgs, fnName, jsonObj;
+    var dataKey, fnArgs, fnName, jsonObj;
 
     jsonObj = JSON.parse(message);
-    jsonObj.params.push(function (err, result) {
-      if (err) {
-        return console.log('error: ' + err);
-      }
-      console.log('result of function call: ' + result);
-    });
+
+    if (is.existy(jsonObj.params)) {
+      jsonObj.params.push(function (err, result) {
+        if (err) {
+          return console.log('error: ' + err);
+        }
+        console.log('result of function call: ' + result);
+      });
+    }
 
     for (dataKey in jsonObj) {
       if (jsonObj.hasOwnProperty(dataKey)) {
@@ -85,9 +91,6 @@ sockjsServer.on('connection', function (conn) {
         console.log('dataKey: ' + dataKey);
         console.log('message[dataKey]: ' + jsonObj[dataKey]);
 
-        if (dataKey === 'object') {
-          ctx = jsonObj[dataKey];
-        }
         if (dataKey === 'command') {
           fnName = jsonObj[dataKey];
         }
@@ -97,52 +100,9 @@ sockjsServer.on('connection', function (conn) {
       }
     }
 
-    executeFunctionByName(fnName, ctx, fnArgs);
+    console.log(fnName);
+    console.log(arguments);
+
+    instance[fnName].apply(instance, fnArgs);
   });
 });
-
-//setTimeout(function () {
-//
-//  console.log('Delaying...');
-//
-//  var dataKey, ctx, fnName, fnArgs, jsonObj = {
-//    object: 'Redis2MySql',
-//    command: 'set',
-//    params: ['typ', ['ky', 'val'], function (err, result) {
-//      if (err) {
-//        return console.log('error: ' + err);
-//      }
-//      console.log(result);
-//    }]
-//  };
-//
-//  for (dataKey in jsonObj) {
-//    if (jsonObj.hasOwnProperty(dataKey)) {
-//
-//      console.log('dataKey: ' + dataKey);
-//      console.log('message[dataKey]: ' + jsonObj[dataKey]);
-//
-//      if (dataKey === 'object') {
-//        ctx = jsonObj[dataKey];
-//      }
-//      if (dataKey === 'command') {
-//        fnName = jsonObj[dataKey];
-//      }
-//      if (dataKey === 'params') {
-//        fnArgs = jsonObj[dataKey];
-//      }
-//    }
-//  }
-//
-//  executeFunctionByName(fnName, ctx, fnArgs);
-//}, 1000);
-
-function executeFunctionByName(functionName, context /*, args */) {
-  console.log(functionName);
-  console.log(context);
-  console.log(arguments);
-
-  if (context === 'Redis2MySql') {
-    return instance[functionName](arguments[2]);//.apply(instance, arguments[2]);
-  }
-}
