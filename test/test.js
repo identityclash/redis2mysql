@@ -386,25 +386,25 @@ describe('Redis2MySQL', function () {
     before(function (done) {
       /* actual object being tested */
       instance = new Redis2MySql({
-          redis: {
-            showFriendlyErrorStack: true
-          },
-          mysql: {
-            user: connection.mysql.user,
-            database: connection.mysql.database,
-            charset: connection.mysql.charset,
-            multipleStatements: 'true'
-          },
-          custom: {
-            datatypePrefix: {
-              string: 'str',
-              list: 'lst',
-              set: 'set',
-              sortedSet: 'zset',
-              hash: 'map'
-            }
+        redis: {
+          showFriendlyErrorStack: true
+        },
+        mysql: {
+          user: connection.mysql.user,
+          database: connection.mysql.database,
+          charset: connection.mysql.charset,
+          multipleStatements: 'true'
+        },
+        custom: {
+          datatypePrefix: {
+            string: 'str',
+            list: 'lst',
+            set: 'set',
+            sortedSet: 'zset',
+            hash: 'map'
           }
-        });
+        }
+      });
       instance.on('error', function (err) {
         throw new Error('Error from listener: ' + err.error + ' ' + err.message +
           ' ' + err.redisKey);
@@ -675,24 +675,36 @@ describe('Redis2MySQL', function () {
         function (done) {
           instance.get('sometype', 'xx', function (err, result) {
             if (err) {
-              done(err);
-            } else {
-              expect(result).to.be.equals('this is a value');
-              extrnRedis.del('str:sometype:xx', function (err) {
-                if (err) {
-                  throw err;
-                } else {
-                  instance.get('sometype', 'xx', function (err, result) {
-                    if (err) {
-                      done(err);
-                    } else {
-                      expect(result).to.be.equals('this is a value');
-                      done();
-                    }
-                  });
-                }
-              });
+              return done(err);
             }
+
+            expect(result).to.be.equals('this is a value');
+
+            // deletion as part of the test to check retrieval from MySQL
+            extrnRedis.del('str:sometype:xx', function (err) {
+              if (err) {
+                return done(err);
+              }
+
+              instance.get('sometype', 'xx', function (err, result) { // supposedly returns with MySQL's results
+                if (err) {
+                  return done(err);
+                }
+
+                var mysqlResult = result;
+
+                expect(mysqlResult).to.be.equals('this is a value');
+
+                extrnRedis.get('str:sometype:xx', function (err, result) {
+                  if (err) {
+                    return done(err);
+                  }
+
+                  expect(mysqlResult).to.be.equals(result); // compare MySQL result with the newly copied Redis value
+                  done();
+                });
+              });
+            });
           });
         });
 
@@ -735,7 +747,7 @@ describe('Redis2MySQL', function () {
       });
     });
 
-    describe('#exists()', function () {
+    describe.only('#exists()', function () {
       before(function (done) {
         async.series([
           function (firstCb) {
@@ -847,14 +859,18 @@ describe('Redis2MySQL', function () {
       it('should return 1 for key `str:sometype:yyy`',
         function (done) {
           instance.exists('str:sometype:yyy', function (err, result) {
+
             if (err) {
               done(err);
             } else {
+
               expect(result).to.be.equals(1);
-              extrnRedis.del('str:sometype:yyy', function (err) {
+
+              extrnRedis.del('str:sometype:yyy', function (err) { // test MySQL retrieval by deleting the Redis key
                 if (err) {
                   done(err);
                 } else {
+
                   instance.exists('str:sometype:yyy', function (err, result) {
                     if (err) {
                       done(err);
@@ -5139,7 +5155,7 @@ describe('Redis2MySQL', function () {
 
       async.whilst(
         function () {
-          return count < 10;
+          return count < 1;
         },
         function (callback) {
           count++;
