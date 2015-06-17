@@ -415,13 +415,54 @@ describe('Redis2MySQL', function () {
 
     describe('#incr()', function () {
       before(function (done) {
-        extrnRedis.set('str:sometype:testincrkey', '2', function (err) {
-          if (err) {
-            done(err);
-          } else {
+        async.series(
+          [
+            function (setTestIncrKeyCb) {
+              extrnRedis.set('str:sometype:testincrkey', 2, function (err) {
+                if (err) {
+                  return setTestIncrKeyCb(err);
+                }
+
+                setTestIncrKeyCb();
+              });
+            },
+            function (createTblCb) {
+              extrnMySql.query(
+                'CREATE TABLE IF NOT EXISTS str_sometype ' +
+                '(' +
+                '`key` VARCHAR(255) PRIMARY KEY, ' +
+                COLUMNS.VALUE + ' VARCHAR(255), ' +
+                COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                ') ',
+                function (err) {
+                  if (err) {
+                    return createTblCb(err);
+                  }
+
+                  createTblCb();
+                });
+            },
+            function (insertTestIncrKeyCb) {
+              extrnMySql.query(
+                'INSERT IGNORE INTO str_sometype (`key`, `value`) VALUES (?, ?)',
+                [
+                  'testincrkey', 2
+                ],
+                function (err) {
+                  if (err) {
+                    return insertTestIncrKeyCb(err);
+                  }
+
+                  insertTestIncrKeyCb();
+                });
+            }
+          ], function (err) {
+            if (err) {
+              return done(err);
+            }
             done();
-          }
-        });
+          });
       });
 
       it('should increment existing key `testincrkey`, return 3, and insert ' +
@@ -524,10 +565,10 @@ describe('Redis2MySQL', function () {
           }
         ], function (err) {
           if (err) {
-            done(err);
-          } else {
-            done();
+            return done(err);
           }
+
+          done();
         });
       });
     });
@@ -1680,17 +1721,151 @@ describe('Redis2MySQL', function () {
     });
 
     describe('#lindex()', function () {
-      beforeEach(function (done) {
-        extrnRedis.multi().time().lpush('lst:some_data',
-          [
-            300,
-            'name1',
-            'name2',
-            '400'
-          ]).exec(function (err, result) {
+      context('element retrieval for specified index test', function () {
+        before(function (done) {
+          extrnRedis.multi().time().lpush('lst:some_data',
+            [
+              300,
+              'name1',
+              'name2',
+              '400'
+            ]).exec(function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                extrnMySql.query(
+                  'CREATE TABLE IF NOT EXISTS lst_some_data ' +
+                  ' (' +
+                  COLUMNS.SEQ + ' DOUBLE PRIMARY KEY, ' +
+                  COLUMNS.VALUE + ' VARCHAR(255), ' +
+                  COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+                  COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+                  ') ',
+                  function (err) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      var time, sqlParams = [];
+
+                      if (result[0][1][1].length > 0) { // result from Redis TIME command
+                        /* UNIX time in sec + microseconds converted to seconds */
+                        time = result[0][1][0] + (result[0][1][1] / 1000000);
+                      }
+
+                      sqlParams.push(time);
+                      sqlParams.push(300);
+                      sqlParams.push((parseFloat(time) + 0.00001));
+                      sqlParams.push('name1');
+                      sqlParams.push((parseFloat(time) + 0.00002));
+                      sqlParams.push('name2');
+                      sqlParams.push((parseFloat(time) + 0.00003));
+                      sqlParams.push('400');
+
+                      extrnMySql.query(
+                        'INSERT INTO lst_some_data (`time_sequence` , `value` ) ' +
+                        'VALUES (?, ?), (?, ?), (?, ?), (?, ?) ',
+                        sqlParams,
+                        function (err) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            done();
+                          }
+                        });
+                    }
+                  });
+              }
+            });
+        });
+
+        it('should get the values in the list in the correct order',
+          function (done) {
+            async.map(
+              [0, 1, 2, 3, 4, -1, -2, -3, -4, -5],
+              function (item, callback) {
+                instance.lindex('some_data', item,
+                  function (err, transformed) {
+                    if (err) {
+                      callback(err);
+                    } else {
+                      callback(null, transformed);
+                    }
+                  });
+              }, function (err, result) {
+                if (err) {
+                  done(err);
+                } else {
+                  expect(result[0]).to.be.equals('400');
+                  expect(result[1]).to.be.equals('name2');
+                  expect(result[2]).to.be.equals('name1');
+                  expect(result[3]).to.be.equals('300');
+                  expect(result[4]).to.be.equals(null);
+                  expect(result[5]).to.be.equals('300');
+                  expect(result[6]).to.be.equals('name1');
+                  expect(result[7]).to.be.equals('name2');
+                  expect(result[8]).to.be.equals('400');
+                  expect(result[9]).to.be.equals(null);
+
+                  extrnRedis.del('lst:some_data', function (err) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      async.map(
+                        [0, 1, 2, 3, 4, -1, -2, -3, -4, -5],
+                        function (item, callback) {
+                          instance.lindex('some_data', item,
+                            function (err, transformed) {
+                              if (err) {
+                                callback(err);
+                              } else {
+                                callback(null, transformed);
+                              }
+                            });
+                        }, function (err, result) {
+                          if (err) {
+                            done(err);
+                          } else {
+                            expect(result[0]).to.be.equals('400');
+                            expect(result[1]).to.be.equals('name2');
+                            expect(result[2]).to.be.equals('name1');
+                            expect(result[3]).to.be.equals('300');
+                            expect(result[4]).to.be.equals(null);
+                            expect(result[5]).to.be.equals('300');
+                            expect(result[6]).to.be.equals('name1');
+                            expect(result[7]).to.be.equals('name2');
+                            expect(result[8]).to.be.equals('400');
+                            expect(result[9]).to.be.equals(null);
+                            done();
+                          }
+                        });
+                    }
+                  });
+                }
+              });
+          });
+
+        after(function (done) {
+          _deleteData(['lst:some_data'], ['lst_some_data'], function (err) {
             if (err) {
               done(err);
             } else {
+              done();
+            }
+          });
+        });
+      });
+
+      context('copy back to Redis from MySQL test', function () {
+        beforeEach(function (done) {
+          extrnRedis.multi().time().lpush('lst:some_data',
+            [
+              1,
+              'd'
+            ]).exec(function (err, result) {
+              if (err) {
+                return done(err);
+              }
+
               extrnMySql.query(
                 'CREATE TABLE IF NOT EXISTS lst_some_data ' +
                 ' (' +
@@ -1701,111 +1876,78 @@ describe('Redis2MySQL', function () {
                 ') ',
                 function (err) {
                   if (err) {
-                    done(err);
-                  } else {
-                    var time, sqlParams = [];
-
-                    if (result[0][1][1].length > 0) { // result from Redis TIME command
-                      /* UNIX time in sec + microseconds converted to seconds */
-                      time = result[0][1][0] + (result[0][1][1] / 1000000);
-                    }
-
-                    sqlParams.push(time);
-                    sqlParams.push(300);
-                    sqlParams.push((parseFloat(time) + 0.00001));
-                    sqlParams.push('name1');
-                    sqlParams.push((parseFloat(time) + 0.00002));
-                    sqlParams.push('name2');
-                    sqlParams.push((parseFloat(time) + 0.00003));
-                    sqlParams.push('400');
-
-                    extrnMySql.query(
-                      'INSERT INTO lst_some_data (`time_sequence` , `value` ) ' +
-                      'VALUES (?, ?), (?, ?), (?, ?), (?, ?) ',
-                      sqlParams,
-                      function (err) {
-                        if (err) {
-                          done(err);
-                        } else {
-                          done();
-                        }
-                      });
+                    return done(err);
                   }
-                });
-            }
-          });
-      });
 
-      it('should get the values in the list in the correct order',
-        function (done) {
-          async.map([0, 1, 2, 3, 4, -1, -2, -3, -4, -5],
-            function (item, callback) {
-              instance.lindex('some_data', item,
-                function (err, transformed) {
-                  if (err) {
-                    callback(err);
-                  } else {
-                    callback(null, transformed);
+                  var time, sqlParams = [];
+
+                  if (result[0][1][1].length > 0) { // result from Redis TIME command
+                    /* UNIX time in sec + microseconds converted to seconds */
+                    time = result[0][1][0] + (result[0][1][1] / 1000000);
                   }
+
+                  sqlParams.push(time);
+                  sqlParams.push('a');
+                  sqlParams.push((parseFloat(time) + 0.00001));
+                  sqlParams.push('b');
+                  sqlParams.push((parseFloat(time) + 0.00002));
+                  sqlParams.push(1);
+                  sqlParams.push((parseFloat(time) + 0.00003));
+                  sqlParams.push('c');
+                  sqlParams.push((parseFloat(time) + 0.00004));
+                  sqlParams.push('d');
+                  sqlParams.push((parseFloat(time) + 0.00005));
+                  sqlParams.push('e');
+
+                  extrnMySql.query(
+                    'INSERT INTO lst_some_data (`time_sequence` , `value` ) ' +
+                    'VALUES (?, ?), (?, ?), (?, ?), (?, ?), (?, ?), (?, ?) ',
+                    sqlParams,
+                    function (err) {
+                      if (err) {
+                        return done(err);
+                      }
+
+                      done();
+                    });
                 });
-            }, function (err, result) {
-              if (err) {
-                done(err);
-              } else {
-                expect(result[0]).to.be.equals('400');
-                expect(result[1]).to.be.equals('name2');
-                expect(result[2]).to.be.equals('name1');
-                expect(result[3]).to.be.equals('300');
-                expect(result[4]).to.be.equals(null);
-                expect(result[5]).to.be.equals('300');
-                expect(result[6]).to.be.equals('name1');
-                expect(result[7]).to.be.equals('name2');
-                expect(result[8]).to.be.equals('400');
-                expect(result[9]).to.be.equals(null);
-                extrnRedis.del('lst:some_data', function (err) {
-                  if (err) {
-                    done(err);
-                  } else {
-                    async.map([0, 1, 2, 3, 4, -1, -2, -3, -4, -5],
-                      function (item, callback) {
-                        instance.lindex('some_data', item,
-                          function (err, transformed) {
-                            if (err) {
-                              callback(err);
-                            } else {
-                              callback(null, transformed);
-                            }
-                          });
-                      }, function (err, result) {
-                        if (err) {
-                          done(err);
-                        } else {
-                          expect(result[0]).to.be.equals('400');
-                          expect(result[1]).to.be.equals('name2');
-                          expect(result[2]).to.be.equals('name1');
-                          expect(result[3]).to.be.equals('300');
-                          expect(result[4]).to.be.equals(null);
-                          expect(result[5]).to.be.equals('300');
-                          expect(result[6]).to.be.equals('name1');
-                          expect(result[7]).to.be.equals('name2');
-                          expect(result[8]).to.be.equals('400');
-                          expect(result[9]).to.be.equals(null);
-                          done();
-                        }
-                      });
-                  }
-                });
-              }
             });
         });
 
-      afterEach(function (done) {
-        _deleteData(['lst:some_data'], ['lst_some_data'], function (err) {
-          if (err) {
-            done(err);
-          } else {
-            done();
-          }
+        it('copy all non-existent elements up to the specified positive index',
+          function (done) {
+            instance.lindex('some_data', 4, function (err, result) {
+              if (err) {
+                return done(err);
+              }
+
+              expect(result).to.be.equals('b');
+              extrnRedis.lrange('lst:some_data', 0, -1, function (err, result) {
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.deep.equals(
+                  [
+                    'e',
+                    'd',
+                    'c',
+                    '1',
+                    'b'
+                  ]);
+                done();
+              });
+            });
+          });
+
+        afterEach(function (done) {
+          _deleteData(['lst:some_data'], ['lst_some_data'], function (err) {
+            if (err) {
+              done(err);
+            } else {
+              done();
+            }
+          });
         });
       });
     });
@@ -2387,27 +2529,38 @@ describe('Redis2MySQL', function () {
         function (done) {
           instance.smembers('some_data', function (err, result) {
             if (err) {
-              done(err);
-            } else {
-              expect(result).contains('matthew').and.contains('20')
-                .and.contains('mark').and.contains('luke').and.contains('60');
-              extrnRedis.del('set:some_data', function (err) {
+              return done(err);
+            }
+
+            expect(result).contains('matthew').and.contains('20')
+              .and.contains('mark').and.contains('luke').and.contains('60');
+
+            extrnRedis.del('set:some_data', function (err) { // delete redis values to test MySQL retrieval
+              if (err) {
+                return done(err);
+              }
+
+              instance.smembers('some_data', function (err, result) {
                 if (err) {
                   done(err);
-                } else {
-                  instance.smembers('some_data', function (err, result) {
-                    if (err) {
-                      done(err);
-                    } else {
-                      expect(result).contains('matthew').and.contains('20')
-                        .and.contains('mark').and.contains('luke')
-                        .and.contains('60');
-                      done();
-                    }
-                  });
                 }
+
+                expect(result).contains('matthew').and.contains('20')
+                  .and.contains('mark').and.contains('luke')
+                  .and.contains('60');
+
+                extrnRedis.smembers('set:some_data', function (err, result) {
+                  if (err) {
+                    return done(err);
+                  }
+
+                  expect(result).contains('matthew').and.contains('20')
+                    .and.contains('mark').and.contains('luke')
+                    .and.contains('60');
+                  done();
+                });
               });
-            }
+            });
           });
         });
 
@@ -2434,39 +2587,40 @@ describe('Redis2MySQL', function () {
           ],
           function (err) {
             if (err) {
-              done(err);
-            } else {
-              extrnMySql.query(
-                'CREATE TABLE IF NOT EXISTS set_some_data ' +
-                '(' +
-                COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
-                COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
-                COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
-                ') ',
-                function (err) {
-                  if (err) {
-                    done(err);
-                  } else {
-                    extrnMySql.query(
-                      'INSERT INTO set_some_data (member) ' +
-                      'VALUES (?), (?), (?), (?), (?)',
-                      [
-                        'matthew',
-                        'mark',
-                        20,
-                        'luke',
-                        60
-                      ],
-                      function (err) {
-                        if (err) {
-                          done(err);
-                        } else {
-                          done();
-                        }
-                      });
-                  }
-                });
+              return done(err);
             }
+
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS set_some_data ' +
+              '(' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  return done(err);
+                }
+
+                extrnMySql.query(
+                  'INSERT INTO set_some_data (member) ' +
+                  'VALUES (?), (?), (?), (?), (?), (?) ',
+                  [
+                    'matthew',
+                    'mark',
+                    20,
+                    'luke',
+                    60,
+                    'weiss'
+                  ],
+                  function (err) {
+                    if (err) {
+                      return done(err);
+                    }
+
+                    done();
+                  });
+              });
           });
       });
 
@@ -2512,6 +2666,24 @@ describe('Redis2MySQL', function () {
                 callback();
               }
             });
+          },
+          function (callback) {
+            instance.sismember('some_data', 'weiss', function (err, result) {
+              if (err) {
+                callback(err);
+              } else {
+                expect(result).to.be.equals(1);
+                extrnRedis.sismember('set:some_data', 'weiss',
+                  function (err, result) {
+                    if (err) {
+                      return callback(err);
+                    }
+
+                    expect(result).to.be.equals(1); // value from MySQL is copied back to Redis
+                    callback();
+                  });
+              }
+            });
           }
         ], function (err) {
           if (err) {
@@ -2528,7 +2700,15 @@ describe('Redis2MySQL', function () {
                         callback(err);
                       } else {
                         expect(result).to.be.equals(1);
-                        callback();
+                        extrnRedis.sismember('set:some_data', 'mark',
+                          function (err, result) {
+                            if (err) {
+                              return callback(err);
+                            }
+
+                            expect(result).to.be.equals(1); // value from MySQL is copied back to Redis
+                            callback();
+                          });
                       }
                     });
                   },
@@ -2538,7 +2718,15 @@ describe('Redis2MySQL', function () {
                         callback(err);
                       } else {
                         expect(result).to.be.equals(1);
-                        callback();
+                        extrnRedis.sismember('set:some_data', '20',
+                          function (err, result) {
+                            if (err) {
+                              return callback(err);
+                            }
+
+                            expect(result).to.be.equals(1); // value from MySQL is copied back to Redis
+                            callback();
+                          });
                       }
                     });
                   },
@@ -2548,7 +2736,15 @@ describe('Redis2MySQL', function () {
                         callback(err);
                       } else {
                         expect(result).to.be.equals(1);
-                        callback();
+                        extrnRedis.sismember('set:some_data', 'luke',
+                          function (err, result) {
+                            if (err) {
+                              return callback(err);
+                            }
+
+                            expect(result).to.be.equals(1); // value from MySQL is copied back to Redis
+                            callback();
+                          });
                       }
                     });
                   },
@@ -2638,24 +2834,36 @@ describe('Redis2MySQL', function () {
         'both Redis and MySQL', function (done) {
         instance.scard('some_data', function (err, result) {
           if (err) {
-            done(err);
-          } else {
-            expect(result).to.be.equals(5);
-            extrnRedis.del('set:some_data', function (err) {
-              if (err) {
-                done(err);
-              } else {
-                instance.scard('some_data', function (err, result) {
-                  if (err) {
-                    done(err);
-                  } else {
-                    expect(result).to.be.equals(5);
-                    done();
-                  }
-                });
-              }
-            });
+            return done(err);
           }
+
+          expect(result).to.be.equals(5);
+
+          // delete Redis key to test retrieval of MySQL members
+          extrnRedis.del('set:some_data', function (err) {
+            if (err) {
+              return done(err);
+            }
+
+            instance.scard('some_data', function (err, result) {
+              if (err) {
+                return done(err);
+              }
+
+              expect(result).to.be.equals(5);
+
+              extrnRedis.smembers('set:some_data', function (err, result) {
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).contains('matthew').and.contains('20')
+                  .and.contains('mark').and.contains('luke')
+                  .and.contains('60');
+                done();
+              });
+            });
+          });
         });
       });
 
@@ -2758,10 +2966,10 @@ describe('Redis2MySQL', function () {
             extrnRedis.zadd('zset:ssgrade',
               scoreMembers, function (err) {
                 if (err) {
-                  firstCb(err);
-                } else {
-                  firstCb();
+                  return firstCb(err);
                 }
+
+                firstCb();
               });
           },
           function (secondCb) {
@@ -2776,10 +2984,10 @@ describe('Redis2MySQL', function () {
               scoreMembers,
               function (err) {
                 if (err) {
-                  secondCb(err);
-                } else {
-                  secondCb();
+                  return secondCb(err);
                 }
+
+                secondCb();
               }
             );
           },
@@ -2790,10 +2998,10 @@ describe('Redis2MySQL', function () {
               scoreMembers,
               function (err) {
                 if (err) {
-                  thirdCb(err);
-                } else {
-                  thirdCb();
+                  return thirdCb(err);
                 }
+
+                thirdCb();
               }
             );
           }
@@ -2812,51 +3020,51 @@ describe('Redis2MySQL', function () {
             function (firstCb) {
               instance.zincrby('ssgrade', -5.5, 'john', function (err, result) {
                 if (err) {
-                  firstCb(err);
-                } else {
-                  expect(result).to.be.equals('76');
-                  setTimeout(
-                    function () {
-                      extrnMySql.query(
-                        'SELECT score ' +
-                        'FROM zset_ssgrade ' +
-                        'WHERE member = ? ',
-                        'john',
-                        function (err, result) {
-                          if (err) {
-                            firstCb(err);
-                          } else {
-                            expect(result[0].score).to.be.equals(76);
-                            firstCb();
-                          }
-                        });
-                    }, 400);
+                  return firstCb(err);
                 }
+
+                expect(result).to.be.equals('76');
+                setTimeout(
+                  function () {
+                    extrnMySql.query(
+                      'SELECT score ' +
+                      'FROM zset_ssgrade ' +
+                      'WHERE member = ? ',
+                      'john',
+                      function (err, result) {
+                        if (err) {
+                          return firstCb(err);
+                        }
+
+                        expect(result[0].score).to.be.equals(76);
+                        firstCb();
+                      });
+                  }, 400);
               });
             },
             function (secondCb) {
               instance.zincrby('ssgrade', 10.533, 'myra', function (err, result) {
                 if (err) {
-                  secondCb(err);
-                } else {
-                  expect(result).to.be.equals('109.283');
-                  setTimeout(
-                    function () {
-                      extrnMySql.query(
-                        'SELECT score ' +
-                        'FROM zset_ssgrade ' +
-                        'WHERE member = ? ',
-                        'myra',
-                        function (err, result) {
-                          if (err) {
-                            secondCb(err);
-                          } else {
-                            expect(result[0].score).to.be.equals(109.283);
-                            secondCb();
-                          }
-                        });
-                    }, 400);
+                  return secondCb(err);
                 }
+
+                expect(result).to.be.equals('109.283');
+                setTimeout(
+                  function () {
+                    extrnMySql.query(
+                      'SELECT score ' +
+                      'FROM zset_ssgrade ' +
+                      'WHERE member = ? ',
+                      'myra',
+                      function (err, result) {
+                        if (err) {
+                          return secondCb(err);
+                        }
+
+                        expect(result[0].score).to.be.equals(109.283);
+                        secondCb();
+                      });
+                  }, 400);
               });
             }
           ], function (err) {
@@ -2977,6 +3185,25 @@ describe('Redis2MySQL', function () {
                           }
                         );
                       }, 400);
+                  },
+                  function (thirdCb) {
+                    instance.zscore('ssgrade', 'sal', function (err, result) {
+                      if (err) {
+                        return thirdCb(err);
+                      }
+
+                      expect(result).to.be.equals('70');
+
+                      // non-existent data was transferred back from MySQL to Redis
+                      extrnRedis.zscore('zset:ssgrade', 'sal', function (err, result) {
+                        if (err) {
+                          return thirdCb(err);
+                        }
+
+                        expect(result).to.be.equals('70');
+                        thirdCb();
+                      });
+                    });
                   }
                 ], function (err) {
                   if (err) {
@@ -3101,6 +3328,25 @@ describe('Redis2MySQL', function () {
                       secondCb();
                     }
                   });
+                },
+                function (thirdCb) {
+                  // non-existent data was transferred back from MySQL to Redis
+                  extrnRedis.zrangebyscore('zset:ssgrade', 0, 100, ['withscores'],
+                    function (err, result) {
+                      if (err) {
+                        return thirdCb(err);
+                      }
+
+                      expect(result).to.deep.equals(
+                        [
+                          'sal', '70',
+                          'ren', '75',
+                          'john', '81.5',
+                          'krull', '81.5',
+                          'myra', '98.75'
+                        ]);
+                      thirdCb();
+                    });
                 }
               ], function (err) {
                 if (err) {
@@ -3231,8 +3477,8 @@ describe('Redis2MySQL', function () {
                           } else {
                             expect(result).to.be.deep.equals(
                               [
-                                'sal', 70,
-                                'ren', 75
+                                'sal', '70',
+                                'ren', '75'
                               ]
                             );
                             done();
@@ -3279,10 +3525,10 @@ describe('Redis2MySQL', function () {
                           } else {
                             expect(result).to.be.deep.equals(
                               [
-                                'sal', 70,
-                                'ren', 75,
-                                'john', 81.5,
-                                'krull', 81.5
+                                'sal', '70',
+                                'ren', '75',
+                                'john', '81.5',
+                                'krull', '81.5'
                               ]
                             );
                             done();
@@ -3328,9 +3574,9 @@ describe('Redis2MySQL', function () {
                           } else {
                             expect(result).to.be.deep.equals(
                               [
-                                'john', 81.5,
-                                'krull', 81.5,
-                                'myra', 98.75
+                                'john', '81.5',
+                                'krull', '81.5',
+                                'myra', '98.75'
                               ]
                             );
                             done();
@@ -3351,10 +3597,51 @@ describe('Redis2MySQL', function () {
               if (err) {
                 done(err);
               } else {
-                expect(result).to.be.deep.equals([]);
+                expect(result).to.deep.equals([]);
                 done();
               }
             });
+        });
+
+      it('should be able to copy data from MySQL back to Redis when data ' +
+        'does not exist in Redis',
+        function (done) {
+          extrnRedis.del('zset:ssgrade', function (err) {
+            if (err) {
+              return done(err);
+            }
+
+            instance.zrangebyscore('ssgrade', '-inf', 'inf', 'withscores', null,
+              null, null, function (err, result) {
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.deep.equals([
+                  'sal', '70',
+                  'ren', '75',
+                  'john', '81.5',
+                  'krull', '81.5',
+                  'myra', '98.75'
+                ]);
+
+                extrnRedis.zrangebyscore('zset:ssgrade', '-inf', 'inf',
+                  ['withscores'], function (err, result) {
+                    if (err) {
+                      return done(err);
+                    }
+
+                    expect(result).to.deep.equals([
+                      'sal', '70',
+                      'ren', '75',
+                      'john', '81.5',
+                      'krull', '81.5',
+                      'myra', '98.75'
+                    ]);
+                    done();
+                  });
+              });
+          });
         });
 
       afterEach(function (done) {
@@ -3463,8 +3750,8 @@ describe('Redis2MySQL', function () {
                           } else {
                             expect(result).to.be.deep.equals(
                               [
-                                'ren', 75,
-                                'sal', 70
+                                'ren', '75',
+                                'sal', '70'
                               ]);
                             done();
                           }
@@ -3510,10 +3797,10 @@ describe('Redis2MySQL', function () {
                           } else {
                             expect(result).to.be.deep.equals(
                               [
-                                'krull', 81.5,
-                                'john', 81.5,
-                                'ren', 75,
-                                'sal', 70
+                                'krull', '81.5',
+                                'john', '81.5',
+                                'ren', '75',
+                                'sal', '70'
                               ]);
                             done();
                           }
@@ -3558,9 +3845,9 @@ describe('Redis2MySQL', function () {
                           } else {
                             expect(result).to.be.deep.equals(
                               [
-                                'krull', 81.5,
-                                'john', 81.5,
-                                'ren', 75
+                                'krull', '81.5',
+                                'john', '81.5',
+                                'ren', '75'
                               ]
                             );
                             done();
@@ -3585,6 +3872,49 @@ describe('Redis2MySQL', function () {
                 done();
               }
             });
+        });
+
+      it('should be able to copy data from MySQL back to Redis when data ' +
+        'does not exist in Redis',
+        function (done) {
+          extrnRedis.del('zset:ssgrade', function (err) {
+            if (err) {
+              return done(err);
+            }
+
+            instance.zrevrangebyscore('ssgrade', 'inf', '-inf', 'withscores', null,
+              null, null, function (err, result) {
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.deep.equals(
+                  [
+                    'myra', '98.75',
+                    'krull', '81.5',
+                    'john', '81.5',
+                    'ren', '75',
+                    'sal', '70'
+                  ]);
+
+                extrnRedis.zrevrangebyscore('zset:ssgrade', 'inf', '-inf',
+                  ['withscores'], function (err, result) {
+                    if (err) {
+                      return done(err);
+                    }
+
+                    expect(result).to.deep.equals(
+                      [
+                        'myra', '98.75',
+                        'krull', '81.5',
+                        'john', '81.5',
+                        'ren', '75',
+                        'sal', '70'
+                      ]);
+                    done();
+                  });
+              });
+          });
         });
 
       afterEach(function (done) {
@@ -3915,24 +4245,34 @@ describe('Redis2MySQL', function () {
         function (done) {
           instance.hget('somename', 'hello', function (err, result) {
             if (err) {
-              done(err);
-            } else {
-              expect(result).to.be.equals('world');
-              extrnRedis.hdel('map:somename', 'hello', function (err) {
-                if (err) {
-                  done(err);
-                } else {
-                  instance.hget('somename', 'hello', function (err, result) {
-                    if (err) {
-                      done(err);
-                    } else {
-                      expect(result).to.be.equals('world');
-                      done();
-                    }
-                  });
-                }
-              });
+              return done(err);
             }
+
+            expect(result).to.be.equals('world');
+
+            extrnRedis.hdel('map:somename', 'hello', function (err) {
+              if (err) {
+                return done(err);
+              }
+
+              instance.hget('somename', 'hello', function (err, result) {
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.be.equals('world');
+
+                extrnRedis.hget('map:somename', 'hello', function (err, result) {
+                  if (err) {
+                    return done(err);
+                  }
+
+                  expect(result).to.be.equals('world');
+
+                  done();
+                });
+              });
+            });
           });
         });
 
@@ -4017,26 +4357,45 @@ describe('Redis2MySQL', function () {
           ],
           function (err, result) {
             if (err) {
-              done(err);
-            } else {
-              expect(result).to.be.deep.equals(
-                [
-                  'adam',
-                  'gracious',
-                  'world',
-                  'sparta'
-                ]
-              );
-              extrnRedis.hdel('map:somename',
-                'madame im',
-                'goodness',
-                'hello',
-                'this is',
-                function (err) {
-                  if (err) {
-                    done(err);
-                  } else {
-                    instance.hmget('somename',
+              return done(err);
+            }
+
+            expect(result).to.be.deep.equals(
+              [
+                'adam',
+                'gracious',
+                'world',
+                'sparta'
+              ]
+            );
+            extrnRedis.hdel('map:somename', // delete hash data in Redis in preparation for MySQL retrieval test
+              'madame im',
+              'goodness',
+              'hello',
+              'this is',
+              function (err) {
+                if (err) {
+                  return done(err);
+                }
+
+                instance.hmget('somename', // implicitly copies MySQL data back to Redis
+                  [
+                    'this is',
+                    'goodness',
+                    'madame im',
+                    'hello'
+                  ],
+                  function (err, result) {
+                    if (err) {
+                      return done(err);
+                    }
+
+                    expect(result[0]).to.be.equals('sparta');
+                    expect(result[1]).to.be.equals('gracious');
+                    expect(result[2]).to.be.equals('adam');
+                    expect(result[3]).to.be.equals('world');
+
+                    extrnRedis.hmget('map:somename',
                       [
                         'this is',
                         'goodness',
@@ -4045,18 +4404,17 @@ describe('Redis2MySQL', function () {
                       ],
                       function (err, result) {
                         if (err) {
-                          done(err);
-                        } else {
-                          expect(result[0]).to.be.equals('sparta');
-                          expect(result[1]).to.be.equals('gracious');
-                          expect(result[2]).to.be.equals('adam');
-                          expect(result[3]).to.be.equals('world');
-                          done();
+                          return done(err);
                         }
+
+                        expect(result[0]).to.be.equals('sparta');
+                        expect(result[1]).to.be.equals('gracious');
+                        expect(result[2]).to.be.equals('adam');
+                        expect(result[3]).to.be.equals('world');
+                        done();
                       });
-                  }
-                });
-            }
+                  });
+              });
           });
       });
 
@@ -4156,36 +4514,51 @@ describe('Redis2MySQL', function () {
         function (done) {
           instance.hgetall('somename', function (err, result) {
             if (err) {
-              done(err);
-            } else {
-              expect(result).to.be.deep.equals(
-                {
-                  goodness: 'gracious',
-                  hello: 'world',
-                  'madame im': 'adam',
-                  'this is': 'sparta'
-                });
-              extrnRedis.del('map:somename', function (err) {
-                if (err) {
-                  done(err);
-                } else {
-                  instance.hgetall('somename', function (err, result) {
-                    if (err) {
-                      done(err);
-                    } else {
-                      expect(result).to.be.deep.equals(
-                        {
-                          goodness: 'gracious',
-                          hello: 'world',
-                          'madame im': 'adam',
-                          'this is': 'sparta'
-                        });
-                      done();
-                    }
-                  });
-                }
-              });
+              return done(err);
             }
+
+            expect(result).to.be.deep.equals(
+              {
+                goodness: 'gracious',
+                hello: 'world',
+                'madame im': 'adam',
+                'this is': 'sparta'
+              });
+
+            extrnRedis.del('map:somename', function (err) {
+              if (err) {
+                return done(err);
+              }
+
+              instance.hgetall('somename', function (err, result) { // retrieve from MySQL
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.be.deep.equals(
+                  {
+                    goodness: 'gracious',
+                    hello: 'world',
+                    'madame im': 'adam',
+                    'this is': 'sparta'
+                  });
+
+                extrnRedis.hgetall('map:somename', function (err, result) {
+                  if (err) {
+                    return done(err);
+                  }
+
+                  expect(result).to.be.deep.equals(
+                    {
+                      goodness: 'gracious',
+                      hello: 'world',
+                      'madame im': 'adam',
+                      'this is': 'sparta'
+                    });
+                  done();
+                });
+              });
+            });
           });
         });
 
@@ -4275,11 +4648,33 @@ describe('Redis2MySQL', function () {
         function (done) {
           instance.hexists('somename', 'madame im', function (err, result) {
             if (err) {
-              done(err);
-            } else {
-              expect(result).to.be.equals(1);
-              done();
+              return done(err);
             }
+
+            expect(result).to.be.equals(1);
+
+            extrnRedis.hdel('map:somename', 'madame im', function (err) {
+              if (err) {
+                return done(err);
+              }
+
+              instance.hexists('somename', 'madame im', function (err, result) {
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.be.equals(1);
+
+                extrnRedis.hget('map:somename', 'madame im', function (err, result) {
+                  if (err) {
+                    return done(err);
+                  }
+
+                  expect(result).to.equals('adam');
+                  done();
+                });
+              });
+            });
           });
         });
 
@@ -5475,7 +5870,7 @@ describe('Redis2MySQL', function () {
 
       async.whilst(
         function () {
-          return count < 1;
+          return count < 5;
         },
         function (callback) {
           count++;
