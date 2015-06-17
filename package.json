@@ -13,6 +13,9 @@
   "license": "MIT",
   "author": "Jerome Ngo <jerome@blumr.com> / Gene Diaz Jr. <gene@blumr.com>",
   "main": "./lib/Redis2MySql",
+  "scripts": {
+    "test": "mocha test"
+  },
   "dependencies": {
     "async": "1.x",
     "mysql": "2.7.x",
