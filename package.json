@@ -22,7 +22,8 @@
     "ioredis": "1.3.x",
     "lazy.js": "0.4.x",
     "is_js": "0.7.x",
-    "winston": "1.x"
+    "winston": "1.x",
+    "modelo": "4.1.x"
   },
   "devDependencies": {
     "chai": "2.3.x",

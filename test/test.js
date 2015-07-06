@@ -7,7 +7,7 @@ var chai = require('chai'),
   expect = chai.expect,
   is = require('is_js'),
   async = require('async'),
-  Redis2MySql = require('../lib/Redis2MySql'),
+  Redis2MySql = require('../lib/redis2mysql'),
   Redis = require('ioredis'),
   mysql = require('mysql'),
   OkPacket = require('../node_modules/mysql/lib/protocol/packets/OkPacket'),
@@ -413,6 +413,7 @@ describe('Redis2MySQL', function () {
       done();
     });
 
+    /* Datatype String */
     describe('#incr()', function () {
       before(function (done) {
         async.series(
@@ -787,851 +788,9 @@ describe('Redis2MySQL', function () {
         });
       });
     });
+    /* End Datatype String */
 
-    describe('#exists()', function () {
-      before(function (done) {
-
-        var time;
-        async.series([
-          /* Set up string data */
-          function (setStringCb) {
-            extrnRedis.set('str:sometype:yyy', 3003,
-              function (err) {
-                if (err) {
-                  return setStringCb(err);
-                }
-
-                setStringCb();
-              });
-          },
-          function (createTblStringCb) {
-            extrnMySql.query(
-              'CREATE TABLE IF NOT EXISTS str_sometype ' +
-              '(' +
-              '`key` VARCHAR(255) PRIMARY KEY, ' +
-              COLUMNS.VALUE + ' VARCHAR(255), ' +
-              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
-              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
-              ') ',
-              function (err) {
-                if (err) {
-                  return createTblStringCb(err);
-                }
-
-                createTblStringCb();
-              });
-          },
-          function (insertStringCb) {
-            extrnMySql.query(
-              'INSERT INTO str_sometype (`key` , value ) VALUES (?, ?) ' +
-              'ON DUPLICATE KEY UPDATE `key` = ?, value = ? ',
-              [
-                'yyy',
-                3003,
-                'yyy',
-                3003
-              ],
-              function (err) {
-                if (err) {
-                  return insertStringCb(err);
-                }
-
-                insertStringCb();
-              });
-          },
-          /* Set up list data */
-          function (lpushListCb) {
-            extrnRedis.multi().time().lpush('lst:some_data', ['a', 'b', 'c', 'd'])
-              .exec(function (err, result) {
-                if (err) {
-                  return lpushListCb(err);
-                }
-
-                if (result[0][1][1].length > 0) { // result from Redis TIME command
-                  /* UNIX time in sec + time elapsed in microseconds converted to seconds */
-                  time = result[0][1][0] + (result[0][1][1] / 1000000);
-                }
-
-                lpushListCb();
-              });
-          },
-          function (createTblListCb) {
-            extrnMySql.query(
-              'CREATE TABLE IF NOT EXISTS lst_some_data ' +
-              ' (' +
-              COLUMNS.SEQ + ' DOUBLE PRIMARY KEY, ' +
-              COLUMNS.VALUE + ' VARCHAR(255), ' +
-              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
-              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
-              ') ',
-              function (err) {
-                if (err) {
-                  return createTblListCb(err);
-                }
-
-                createTblListCb();
-              });
-          },
-          function (insertListCb) {
-            var sqlParams = [];
-            sqlParams.push(time);
-            sqlParams.push('a');
-            sqlParams.push((parseFloat(time) + 0.00001));
-            sqlParams.push('b');
-            sqlParams.push((parseFloat(time) + 0.00002));
-            sqlParams.push('c');
-            sqlParams.push((parseFloat(time) + 0.00003));
-            sqlParams.push('d');
-
-            extrnMySql.query(
-              'INSERT INTO lst_some_data (`time_sequence` , `value` ) ' +
-              'VALUES (?, ?), (?, ?), (?, ?), (?, ?) ',
-              sqlParams,
-              function (err) {
-                if (err) {
-                  return insertListCb(err);
-                }
-
-                insertListCb();
-              });
-          },
-          /* Set up set data */
-          function (saddSetCb) {
-            extrnRedis.sadd('set:somenumber', 4003,
-              function (err) {
-                if (err) {
-                  return saddSetCb(err);
-                }
-
-                saddSetCb();
-              });
-          },
-          function (createTblSetCb) {
-            extrnMySql.query(
-              'CREATE TABLE IF NOT EXISTS set_somenumber ' +
-              '(' +
-              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
-              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
-              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
-              ') ',
-              function (err) {
-                if (err) {
-                  return createTblSetCb(err);
-                }
-
-                createTblSetCb();
-              });
-          },
-          function (insertSetCb) {
-            extrnMySql.query(
-              'INSERT IGNORE INTO set_somenumber (`member`) VALUES (?), (?), (?)',
-              [5003, 5004, 5005],
-              function (err) {
-                if (err) {
-                  return insertSetCb(err);
-                }
-
-                insertSetCb();
-              });
-          },
-          /* Set up sorted set data */
-          function (zaddSortedSetCb) {
-            extrnRedis.sadd('zset:ssgrade',
-              [
-                10.10, 'a',
-                12.67, 'b',
-                15.30, 'c',
-                9.001, 'e',
-                9.001, 'd'
-              ],
-              function (err) {
-                if (err) {
-                  return zaddSortedSetCb(err);
-                }
-
-                zaddSortedSetCb();
-              });
-          },
-          function (createTblSortedSetCb) {
-            extrnMySql.query(
-              'CREATE TABLE IF NOT EXISTS zset_ssgrade ' +
-              '(' +
-              COLUMNS.SCORE + ' DOUBLE, ' +
-              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
-              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
-              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
-              ') ',
-              function (err) {
-                if (err) {
-                  return createTblSortedSetCb(err);
-                }
-
-                createTblSortedSetCb();
-              });
-          },
-          function (insertSetCb) {
-            extrnMySql.query(
-              'INSERT IGNORE INTO zset_ssgrade (`score`, `member`) ' +
-              'VALUES (?, ?), (?, ?), (?, ?), (?, ?), (?, ?) ',
-              [
-                10.10, 'a',
-                12.67, 'b',
-                15.30, 'c',
-                9.001, 'e',
-                9.001, 'd'
-              ],
-              function (err) {
-                if (err) {
-                  return insertSetCb(err);
-                }
-
-                insertSetCb();
-              });
-          },
-          /* Set up hash data */
-          function (hsetHashCb) {
-            extrnRedis.hmset('map:somename',
-              [
-                'field1', '300',
-                'field2', '400',
-                'field3', '500'
-              ],
-              function (err) {
-                if (err) {
-                  return hsetHashCb(err);
-                }
-
-                hsetHashCb();
-              });
-          },
-          function (createTblHashCb) {
-            extrnMySql.query(
-              'CREATE TABLE IF NOT EXISTS map_somename ' +
-              '(' +
-              '`field` VARCHAR(255) PRIMARY KEY, ' +
-              COLUMNS.VALUE + ' VARCHAR(255), ' +
-              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
-              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
-              ') ',
-              function (err) {
-                if (err) {
-                  return createTblHashCb(err);
-                }
-
-                createTblHashCb();
-              });
-          },
-          function (insertHashCb) {
-            extrnMySql.query(
-              'INSERT IGNORE INTO map_somename (`field`, `value`) ' +
-              'VALUES (?, ?), (?, ?), (?, ?) ',
-              [
-                'field1', '300',
-                'field2', '400',
-                'field3', '500'
-              ],
-              function (err) {
-                if (err) {
-                  return insertHashCb(err);
-                }
-
-                insertHashCb();
-              });
-          }
-        ], function (err) {
-          if (err) {
-            return done(err);
-          }
-
-          done();
-        });
-      });
-
-      it('should be able to determine whether a string exists in Redis and ' +
-        'MySQL.  If string does not exist in Redis but exists in MySQL, then ' +
-        'string data from RDBMS have to be copied back to Redis.',
-        function (done) {
-          instance.exists('str:sometype:yyy', function (err, result) {
-            if (err) {
-              return done(err);
-            }
-
-            expect(result).to.be.equals(1);
-            extrnRedis.del('str:sometype:yyy', function (err) { // test MySQL retrieval by deleting the Redis key
-              if (err) {
-                return done(err);
-              }
-
-              instance.exists('str:sometype:yyy', function (err, result) { // check if Redis2MySQL retrieves from MySQL
-                if (err) {
-                  return done(err);
-                }
-
-                expect(result).to.be.equals(1);
-                extrnRedis.get('str:sometype:yyy', function (err, result) {
-                  if (err) {
-                    return done(err);
-                  }
-
-                  expect(result).to.be.equals('3003');
-                  done();
-                });
-              });
-            });
-          });
-        });
-
-      it('should be able to determine whether a list exists in Redis and ' +
-        'MySQL.  If list does not exist in Redis but exists in MySQL, then ' +
-        'all list data from RDBMS have to be copied back to Redis.',
-        function (done) {
-          instance.exists('lst:some_data', function (err, result) {
-            if (err) {
-              return done(err);
-            }
-
-            expect(result).to.be.equals(1);
-            extrnRedis.del('lst:some_data', function (err) { // test MySQL retrieval by deleting the Redis key
-              if (err) {
-                return done(err);
-              }
-
-              instance.exists('lst:some_data', function (err, result) { // check if Redis2MySQL retrieves from MySQL
-                if (err) {
-                  return done(err);
-                }
-
-                expect(result).to.be.equals(1);
-                async.series(
-                  [
-                    function (firstCb) {
-                      extrnRedis.lindex('lst:some_data', 0,
-                        function (err, result) {
-                          if (err) {
-                            return firstCb(err);
-                          }
-
-                          expect(result).to.be.equals('d');
-                          firstCb();
-                        });
-                    },
-                    function (secondCb) {
-                      extrnRedis.lindex('lst:some_data', 1,
-                        function (err, result) {
-                          if (err) {
-                            return secondCb(err);
-                          }
-
-                          expect(result).to.be.equals('c');
-                          secondCb();
-                        });
-                    },
-                    function (thirdCb) {
-                      extrnRedis.lindex('lst:some_data', 2,
-                        function (err, result) {
-                          if (err) {
-                            return thirdCb(err);
-                          }
-
-                          expect(result).to.be.equals('b');
-                          thirdCb();
-                        });
-                    },
-                    function (fourthCb) {
-                      extrnRedis.lindex('lst:some_data', 3,
-                        function (err, result) {
-                          if (err) {
-                            return fourthCb(err);
-                          }
-
-                          expect(result).to.be.equals('a');
-                          fourthCb();
-                        });
-                    }
-                  ],
-                  function (err) {
-                    if (err) {
-                      return done(err);
-                    }
-
-                    done();
-                  });
-              });
-            });
-          });
-        });
-
-      it('should be able to determine whether a set exists in Redis and ' +
-        'MySQL.  If set does not exist in Redis but exists in MySQL, then ' +
-        'all set data from RDBMS have to be copied back to Redis.',
-        function (done) {
-          instance.exists('set:somenumber', function (err, result) {
-            if (err) {
-              return done(err);
-            }
-
-            expect(result).to.be.equals(1);
-            extrnRedis.del('set:somenumber', function (err) {
-              if (err) {
-                return done(err);
-              }
-
-              instance.exists('set:somenumber', function (err, result) {
-                if (err) {
-                  return done(err);
-                }
-
-                expect(result).to.be.equals(1);
-                extrnRedis.smembers('set:somenumber', function (err, result) {
-                  if (err) {
-                    return done(err);
-                  }
-
-                  expect(result).to.deep.equals([
-                    '5003', '5004', '5005'
-                  ]);
-                  done();
-                });
-              });
-            });
-          });
-        });
-
-      it('should be able to determine whether a sorted set exists in Redis and ' +
-        'MySQL.  If sorted set does not exist in Redis but exists in MySQL, then ' +
-        'all sorted set data from RDBMS have to be copied back to Redis.',
-        function (done) {
-          instance.exists('zset:ssgrade', function (err, result) {
-            if (err) {
-              return done(err);
-            }
-
-            expect(result).to.be.equals(1);
-            extrnRedis.del('zset:ssgrade', function (err) {
-              if (err) {
-                return done(err);
-              }
-
-              instance.exists('zset:ssgrade', function (err, result) {
-                if (err) {
-                  return done(err);
-                }
-
-                expect(result).to.be.equals(1);
-                extrnRedis.zrangebyscore('zset:ssgrade', '-inf', 'inf',
-                  ['withscores'], function (err, result) {
-                    if (err) {
-                      return done(err);
-                    }
-
-                    expect(result[0]).to.equals('d');
-                    expect(parseFloat(result[1])).to.be.closeTo(9.001, 0.01);
-                    expect(result[2]).to.equals('e');
-                    expect(parseFloat(result[3])).to.be.closeTo(9.001, 0.01);
-                    expect(result[4]).to.equals('a');
-                    expect(parseFloat(result[5])).to.be.closeTo(10.10, 0.01);
-                    expect(result[6]).to.equals('b');
-                    expect(parseFloat(result[7])).to.be.closeTo(12.67, 0.01);
-                    expect(result[8]).to.equals('c');
-                    expect(parseFloat(result[9])).to.be.closeTo(15.30, 0.01);
-                    done();
-                  });
-              });
-            });
-          });
-        });
-
-      it('should be able to determine whether a hash exists in Redis and ' +
-        'MySQL.  If hash does not exist in Redis but exists in MySQL, then ' +
-        'all hash data from RDBMS have to be copied back to Redis.',
-        function (done) {
-          instance.exists('map:somename', function (err, result) {
-            if (err) {
-              return done(err);
-            }
-
-            expect(result).to.be.equals(1);
-            extrnRedis.del('map:somename', function (err) {
-              if (err) {
-                return done(err);
-              }
-
-              instance.exists('map:somename', function (err, result) {
-                if (err) {
-                  return done(err);
-                }
-
-                expect(result).to.be.equals(1);
-                extrnRedis.hgetall('map:somename', function (err, result) {
-                  if (err) {
-                    return done(err);
-                  }
-
-                  expect(result).to.deep.equals({
-                    field1: '300',
-                    field2: '400',
-                    field3: '500'
-                  });
-                  done();
-                });
-              });
-            });
-          });
-        });
-
-      after(function (done) {
-        async.series([
-          function (firstCb) {
-            var keys = [
-              'str:sometype:yyy',
-              'lst:some_data',
-              'set:somenumber',
-              'zset:ssgrade',
-              'map:somename'
-            ];
-            extrnRedis.del(keys, function (err) {
-              if (err) {
-                firstCb(err);
-              } else {
-                firstCb();
-              }
-            });
-          },
-          function (secondCb) {
-            var tables = [
-              'str_sometype',
-              'lst_some_data',
-              'set_somenumber',
-              'zset_ssgrade',
-              'map_somename'
-            ];
-            extrnMySql.query('DROP TABLE IF EXISTS ??, ??, ??, ??, ??',
-              tables,
-              function (err) {
-                if (err) {
-                  secondCb(err);
-                } else {
-                  secondCb();
-                }
-              }
-            );
-          }
-        ], function (err) {
-          if (err) {
-            done(err);
-          } else {
-            done();
-          }
-        });
-      });
-    });
-
-    describe('#del()', function () {
-      beforeEach(function (done) {
-        async.series([
-          function (firstCb) {
-            extrnRedis.mset('str:sometype:yyy', 3003, 'str:sometype:xx',
-              'this is a value',
-              function (err) {
-                if (err) {
-                  firstCb(err);
-                } else {
-                  firstCb();
-                }
-              });
-          },
-          function (secondCb) {
-            extrnMySql.query(
-              'CREATE TABLE IF NOT EXISTS str_sometype ' +
-              '(' +
-              '`key` VARCHAR(255) PRIMARY KEY, ' +
-              COLUMNS.VALUE + ' VARCHAR(255), ' +
-              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
-              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
-              ') ',
-              function (err) {
-                if (err) {
-                  secondCb(err);
-                } else {
-                  secondCb();
-                }
-              });
-          }, function (thirdCb) {
-            extrnMySql.query(
-              'INSERT INTO str_sometype (`key` , value ) VALUES (?, ?), (?, ?) ',
-              [
-                'yyy',
-                3003,
-                'xx',
-                'this is a value'
-              ],
-              function (err) {
-                if (err) {
-                  thirdCb(err);
-                } else {
-                  thirdCb();
-                }
-              });
-          }, function (fourthCb) {
-            extrnRedis.sadd('set:somenumber', 4003,
-              function (err) {
-                if (err) {
-                  fourthCb(err);
-                } else {
-                  fourthCb();
-                }
-              });
-          }, function (fifthCb) {
-            extrnMySql.query(
-              'CREATE TABLE IF NOT EXISTS set_somenumber ' +
-              '(' +
-              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
-              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
-              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
-              ') ',
-              function (err) {
-                if (err) {
-                  fifthCb(err);
-                } else {
-                  fifthCb();
-                }
-              });
-          }, function (sixthCb) {
-            extrnMySql.query(
-              'INSERT IGNORE INTO set_somenumber (`member`) VALUES (?)',
-              [
-                5003
-              ],
-              function (err) {
-                if (err) {
-                  sixthCb(err);
-                } else {
-                  sixthCb();
-                }
-              });
-          }, function (seventhCb) {
-            extrnRedis.mset('str:some_new_type:zz', 'hello',
-              'str:some_new_type:aa', 1000,
-              function (err) {
-                if (err) {
-                  seventhCb(err);
-                } else {
-                  seventhCb();
-                }
-              });
-          }, function (eighthCb) {
-            extrnMySql.query(
-              'CREATE TABLE IF NOT EXISTS str_some_new_type ' +
-              '(' +
-              '`key` VARCHAR(255) PRIMARY KEY, ' +
-              COLUMNS.VALUE + ' VARCHAR(255), ' +
-              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
-              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
-              ') ',
-              function (err) {
-                if (err) {
-                  eighthCb(err);
-                } else {
-                  eighthCb();
-                }
-              });
-          }, function (ninthCb) {
-            extrnMySql.query(
-              'INSERT INTO str_some_new_type (`key` , value ) VALUES (?, ?), (?, ?) ',
-              [
-                'zz',
-                'hello',
-                'aa',
-                1000
-              ],
-              function (err) {
-                if (err) {
-                  ninthCb(err);
-                } else {
-                  ninthCb();
-                }
-              });
-          }
-        ], function (err) {
-          if (err) {
-            done(err);
-          } else {
-            done();
-          }
-        });
-      });
-
-      it('should delete `str:sometype:xx` and `str:sometype:yyy` key ' +
-        'in Redis and MySQL', function (done) {
-        instance.del('str:sometype:xx', function (err, result) {
-          if (err) {
-            done(err);
-          } else {
-            expect(result).to.be.equals(1);
-            extrnRedis.exists('str:sometype:xx', function (err, result) {
-              if (err) {
-                done(err);
-              } else {
-                expect(result).to.be.equals(0);
-              }
-            });
-            setTimeout(function () {
-              extrnMySql.query(
-                'SELECT COUNT(1) AS cnt FROM str_sometype WHERE `key` = ? ',
-                'xx',
-                function (err, result) {
-                  if (err) {
-                    done(err);
-                  } else {
-                    expect(result[0].cnt).to.be.equals(0);
-                    extrnMySql.query(
-                      'SELECT COUNT(1) AS exist_cnt FROM str_sometype',
-                      function (err, result) {
-                        if (err) {
-                          done(err);
-                        } else {
-                          expect(result[0].exist_cnt).to.be.equals(1);
-                          instance.del('str:sometype:yyy', function (err, result) {
-                            if (err) {
-                              done(err);
-                            } else {
-                              expect(result).to.be.equals(1);
-                              extrnRedis.exists('str:sometype:yyy',
-                                function (err, result) {
-                                  if (err) {
-                                    done(err);
-                                  } else {
-                                    expect(result).to.be.equals(0);
-                                  }
-                                });
-                              setTimeout(function () {
-                                extrnMySql.query(
-                                  'SELECT COUNT(1) AS tbl_exist_cnt ' +
-                                  'FROM information_schema.TABLES ' +
-                                  'WHERE TABLE_NAME = ? ',
-                                  'str_sometype',
-                                  function (err, result) {
-                                    if (err) {
-                                      done(err);
-                                    } else {
-                                      expect(result[0].tbl_exist_cnt).to.be
-                                        .equals(0);
-                                      done();
-                                    }
-                                  });
-                              }, 400);
-                            }
-                          });
-                        }
-                      });
-                  }
-                });
-            }, 400);
-          }
-        });
-      });
-
-      it('should delete `str:some_new_type:zz`, `str:some_new_type:aa`, ' +
-        'and set:somenumber', function (done) {
-        instance.del(
-          [
-            'str:some_new_type:zz',
-            'str:some_new_type:aa',
-            'set:somenumber'
-          ],
-          function (err, result) {
-            if (err) {
-              done(err);
-            } else {
-              expect(result).to.be.equals(3);
-              extrnRedis.exists('str:some_new_type:zz', function (err, result) {
-                if (err) {
-                  done(err);
-                } else {
-                  expect(result).to.be.equals(0);
-                }
-              });
-              extrnRedis.exists('str:some_new_type:aa', function (err, result) {
-                if (err) {
-                  done(err);
-                } else {
-                  expect(result).to.be.equals(0);
-                }
-              });
-              extrnRedis.exists('set:somenumber', function (err, result) {
-                if (err) {
-                  done(err);
-                } else {
-                  expect(result).to.be.equals(0);
-                }
-              });
-              setTimeout(function () {
-                extrnMySql.query(
-                  'SELECT COUNT(1) AS tbl_exist_cnt ' +
-                  'FROM information_schema.TABLES ' +
-                  'WHERE TABLE_NAME IN (?, ?) ',
-                  ['str_some_new_type', 'set_somenumber'],
-                  function (err, result) {
-                    if (err) {
-                      done(err);
-                    } else {
-                      expect(result[0].tbl_exist_cnt).to.be.equals(0);
-                      done();
-                    }
-                  });
-              }, 400);
-            }
-          });
-      });
-
-      afterEach(function (done) {
-        async.series([
-          function (firstCb) {
-            var keys = [
-              'str:sometype:xx',
-              'str:sometype:yyy',
-              'str:some_new_type:zz',
-              'str:some_new_type:aa',
-              'set:somenumber',
-              'map:somename'
-            ];
-            extrnRedis.del(keys, function (err) {
-              if (err) {
-                firstCb(err);
-              } else {
-                firstCb();
-              }
-            });
-          },
-          function (secondCb) {
-            var tables = [
-              'str_sometype',
-              'str_some_new_type',
-              'set_somenumber',
-              'map_somename'
-            ];
-            extrnMySql.query('DROP TABLE IF EXISTS ??, ??, ??',
-              tables,
-              function (err) {
-                if (err) {
-                  secondCb(err);
-                } else {
-                  secondCb();
-                }
-              }
-            );
-          }
-        ], function (err) {
-          if (err) {
-            done(err);
-          } else {
-            done();
-          }
-        });
-      });
-
-    });
-
+    /* Datatype List */
     describe('#lpush()', function () {
       it('should insert all values into the list `lst:some_data`',
         function (done) {
@@ -2283,7 +1442,9 @@ describe('Redis2MySQL', function () {
         });
       });
     });
+    /* End Datatype List */
 
+    /* Datatype Set */
     describe('#sadd()', function () {
       it('should add the specified values in a set in Redis and MySQL ',
         function (done) {
@@ -2951,7 +2112,9 @@ describe('Redis2MySQL', function () {
         });
       });
     });
+    /* End Datatype Set */
 
+    /* Datatype Sorted Set */
     describe('#zincrby()', function () {
       before(function (done) {
         var scoreMembers = [
@@ -3927,7 +3090,9 @@ describe('Redis2MySQL', function () {
         });
       });
     });
+    /* End Datatype Sorted Set */
 
+    /* Datatype Hash */
     describe('#hset()', function () {
       it('should be able to add a key-value in a hash', function (done) {
         instance.hset('somename', 'hello', 'world', function (err, result) {
@@ -4841,6 +4006,852 @@ describe('Redis2MySQL', function () {
           }
         });
       });
+    });
+    /* End Datatype Hash */
+
+    /* All */
+    describe('#exists()', function () {
+      before(function (done) {
+
+        var time;
+        async.series([
+          /* Set up string data */
+          function (setStringCb) {
+            extrnRedis.set('str:sometype:yyy', 3003,
+              function (err) {
+                if (err) {
+                  return setStringCb(err);
+                }
+
+                setStringCb();
+              });
+          },
+          function (createTblStringCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS str_sometype ' +
+              '(' +
+              '`key` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  return createTblStringCb(err);
+                }
+
+                createTblStringCb();
+              });
+          },
+          function (insertStringCb) {
+            extrnMySql.query(
+              'INSERT INTO str_sometype (`key` , value ) VALUES (?, ?) ' +
+              'ON DUPLICATE KEY UPDATE `key` = ?, value = ? ',
+              [
+                'yyy',
+                3003,
+                'yyy',
+                3003
+              ],
+              function (err) {
+                if (err) {
+                  return insertStringCb(err);
+                }
+
+                insertStringCb();
+              });
+          },
+          /* Set up list data */
+          function (lpushListCb) {
+            extrnRedis.multi().time().lpush('lst:some_data', ['a', 'b', 'c', 'd'])
+              .exec(function (err, result) {
+                if (err) {
+                  return lpushListCb(err);
+                }
+
+                if (result[0][1][1].length > 0) { // result from Redis TIME command
+                  /* UNIX time in sec + time elapsed in microseconds converted to seconds */
+                  time = result[0][1][0] + (result[0][1][1] / 1000000);
+                }
+
+                lpushListCb();
+              });
+          },
+          function (createTblListCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS lst_some_data ' +
+              ' (' +
+              COLUMNS.SEQ + ' DOUBLE PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  return createTblListCb(err);
+                }
+
+                createTblListCb();
+              });
+          },
+          function (insertListCb) {
+            var sqlParams = [];
+            sqlParams.push(time);
+            sqlParams.push('a');
+            sqlParams.push((parseFloat(time) + 0.00001));
+            sqlParams.push('b');
+            sqlParams.push((parseFloat(time) + 0.00002));
+            sqlParams.push('c');
+            sqlParams.push((parseFloat(time) + 0.00003));
+            sqlParams.push('d');
+
+            extrnMySql.query(
+              'INSERT INTO lst_some_data (`time_sequence` , `value` ) ' +
+              'VALUES (?, ?), (?, ?), (?, ?), (?, ?) ',
+              sqlParams,
+              function (err) {
+                if (err) {
+                  return insertListCb(err);
+                }
+
+                insertListCb();
+              });
+          },
+          /* Set up set data */
+          function (saddSetCb) {
+            extrnRedis.sadd('set:somenumber', 4003,
+              function (err) {
+                if (err) {
+                  return saddSetCb(err);
+                }
+
+                saddSetCb();
+              });
+          },
+          function (createTblSetCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS set_somenumber ' +
+              '(' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  return createTblSetCb(err);
+                }
+
+                createTblSetCb();
+              });
+          },
+          function (insertSetCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO set_somenumber (`member`) VALUES (?), (?), (?)',
+              [5003, 5004, 5005],
+              function (err) {
+                if (err) {
+                  return insertSetCb(err);
+                }
+
+                insertSetCb();
+              });
+          },
+          /* Set up sorted set data */
+          function (zaddSortedSetCb) {
+            extrnRedis.sadd('zset:ssgrade',
+              [
+                10.10, 'a',
+                12.67, 'b',
+                15.30, 'c',
+                9.001, 'e',
+                9.001, 'd'
+              ],
+              function (err) {
+                if (err) {
+                  return zaddSortedSetCb(err);
+                }
+
+                zaddSortedSetCb();
+              });
+          },
+          function (createTblSortedSetCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS zset_ssgrade ' +
+              '(' +
+              COLUMNS.SCORE + ' DOUBLE, ' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  return createTblSortedSetCb(err);
+                }
+
+                createTblSortedSetCb();
+              });
+          },
+          function (insertSetCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO zset_ssgrade (`score`, `member`) ' +
+              'VALUES (?, ?), (?, ?), (?, ?), (?, ?), (?, ?) ',
+              [
+                10.10, 'a',
+                12.67, 'b',
+                15.30, 'c',
+                9.001, 'e',
+                9.001, 'd'
+              ],
+              function (err) {
+                if (err) {
+                  return insertSetCb(err);
+                }
+
+                insertSetCb();
+              });
+          },
+          /* Set up hash data */
+          function (hsetHashCb) {
+            extrnRedis.hmset('map:somename',
+              [
+                'field1', '300',
+                'field2', '400',
+                'field3', '500'
+              ],
+              function (err) {
+                if (err) {
+                  return hsetHashCb(err);
+                }
+
+                hsetHashCb();
+              });
+          },
+          function (createTblHashCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS map_somename ' +
+              '(' +
+              '`field` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  return createTblHashCb(err);
+                }
+
+                createTblHashCb();
+              });
+          },
+          function (insertHashCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO map_somename (`field`, `value`) ' +
+              'VALUES (?, ?), (?, ?), (?, ?) ',
+              [
+                'field1', '300',
+                'field2', '400',
+                'field3', '500'
+              ],
+              function (err) {
+                if (err) {
+                  return insertHashCb(err);
+                }
+
+                insertHashCb();
+              });
+          }
+        ], function (err) {
+          if (err) {
+            return done(err);
+          }
+
+          done();
+        });
+      });
+
+      it('should be able to determine whether a string exists in Redis and ' +
+        'MySQL.  If string does not exist in Redis but exists in MySQL, then ' +
+        'string data from RDBMS have to be copied back to Redis.',
+        function (done) {
+          instance.exists('str:sometype:yyy', function (err, result) {
+            if (err) {
+              return done(err);
+            }
+
+            expect(result).to.be.equals(1);
+            extrnRedis.del('str:sometype:yyy', function (err) { // test MySQL retrieval by deleting the Redis key
+              if (err) {
+                return done(err);
+              }
+
+              instance.exists('str:sometype:yyy', function (err, result) { // check if Redis2MySQL retrieves from MySQL
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.be.equals(1);
+                extrnRedis.get('str:sometype:yyy', function (err, result) {
+                  if (err) {
+                    return done(err);
+                  }
+
+                  expect(result).to.be.equals('3003');
+                  done();
+                });
+              });
+            });
+          });
+        });
+
+      it('should be able to determine whether a list exists in Redis and ' +
+        'MySQL.  If list does not exist in Redis but exists in MySQL, then ' +
+        'all list data from RDBMS have to be copied back to Redis.',
+        function (done) {
+          instance.exists('lst:some_data', function (err, result) {
+            if (err) {
+              return done(err);
+            }
+
+            expect(result).to.be.equals(1);
+            extrnRedis.del('lst:some_data', function (err) { // test MySQL retrieval by deleting the Redis key
+              if (err) {
+                return done(err);
+              }
+
+              instance.exists('lst:some_data', function (err, result) { // check if Redis2MySQL retrieves from MySQL
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.be.equals(1);
+                async.series(
+                  [
+                    function (firstCb) {
+                      extrnRedis.lindex('lst:some_data', 0,
+                        function (err, result) {
+                          if (err) {
+                            return firstCb(err);
+                          }
+
+                          expect(result).to.be.equals('d');
+                          firstCb();
+                        });
+                    },
+                    function (secondCb) {
+                      extrnRedis.lindex('lst:some_data', 1,
+                        function (err, result) {
+                          if (err) {
+                            return secondCb(err);
+                          }
+
+                          expect(result).to.be.equals('c');
+                          secondCb();
+                        });
+                    },
+                    function (thirdCb) {
+                      extrnRedis.lindex('lst:some_data', 2,
+                        function (err, result) {
+                          if (err) {
+                            return thirdCb(err);
+                          }
+
+                          expect(result).to.be.equals('b');
+                          thirdCb();
+                        });
+                    },
+                    function (fourthCb) {
+                      extrnRedis.lindex('lst:some_data', 3,
+                        function (err, result) {
+                          if (err) {
+                            return fourthCb(err);
+                          }
+
+                          expect(result).to.be.equals('a');
+                          fourthCb();
+                        });
+                    }
+                  ],
+                  function (err) {
+                    if (err) {
+                      return done(err);
+                    }
+
+                    done();
+                  });
+              });
+            });
+          });
+        });
+
+      it('should be able to determine whether a set exists in Redis and ' +
+        'MySQL.  If set does not exist in Redis but exists in MySQL, then ' +
+        'all set data from RDBMS have to be copied back to Redis.',
+        function (done) {
+          instance.exists('set:somenumber', function (err, result) {
+            if (err) {
+              return done(err);
+            }
+
+            expect(result).to.be.equals(1);
+            extrnRedis.del('set:somenumber', function (err) {
+              if (err) {
+                return done(err);
+              }
+
+              instance.exists('set:somenumber', function (err, result) {
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.be.equals(1);
+                extrnRedis.smembers('set:somenumber', function (err, result) {
+                  if (err) {
+                    return done(err);
+                  }
+
+                  expect(result).to.deep.equals([
+                    '5003', '5004', '5005'
+                  ]);
+                  done();
+                });
+              });
+            });
+          });
+        });
+
+      it('should be able to determine whether a sorted set exists in Redis and ' +
+        'MySQL.  If sorted set does not exist in Redis but exists in MySQL, then ' +
+        'all sorted set data from RDBMS have to be copied back to Redis.',
+        function (done) {
+          instance.exists('zset:ssgrade', function (err, result) {
+            if (err) {
+              return done(err);
+            }
+
+            expect(result).to.be.equals(1);
+            extrnRedis.del('zset:ssgrade', function (err) {
+              if (err) {
+                return done(err);
+              }
+
+              instance.exists('zset:ssgrade', function (err, result) {
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.be.equals(1);
+                extrnRedis.zrangebyscore('zset:ssgrade', '-inf', 'inf',
+                  ['withscores'], function (err, result) {
+                    if (err) {
+                      return done(err);
+                    }
+
+                    expect(result[0]).to.equals('d');
+                    expect(parseFloat(result[1])).to.be.closeTo(9.001, 0.01);
+                    expect(result[2]).to.equals('e');
+                    expect(parseFloat(result[3])).to.be.closeTo(9.001, 0.01);
+                    expect(result[4]).to.equals('a');
+                    expect(parseFloat(result[5])).to.be.closeTo(10.10, 0.01);
+                    expect(result[6]).to.equals('b');
+                    expect(parseFloat(result[7])).to.be.closeTo(12.67, 0.01);
+                    expect(result[8]).to.equals('c');
+                    expect(parseFloat(result[9])).to.be.closeTo(15.30, 0.01);
+                    done();
+                  });
+              });
+            });
+          });
+        });
+
+      it('should be able to determine whether a hash exists in Redis and ' +
+        'MySQL.  If hash does not exist in Redis but exists in MySQL, then ' +
+        'all hash data from RDBMS have to be copied back to Redis.',
+        function (done) {
+          instance.exists('map:somename', function (err, result) {
+            if (err) {
+              return done(err);
+            }
+
+            expect(result).to.be.equals(1);
+            extrnRedis.del('map:somename', function (err) {
+              if (err) {
+                return done(err);
+              }
+
+              instance.exists('map:somename', function (err, result) {
+                if (err) {
+                  return done(err);
+                }
+
+                expect(result).to.be.equals(1);
+                extrnRedis.hgetall('map:somename', function (err, result) {
+                  if (err) {
+                    return done(err);
+                  }
+
+                  expect(result).to.deep.equals({
+                    field1: '300',
+                    field2: '400',
+                    field3: '500'
+                  });
+                  done();
+                });
+              });
+            });
+          });
+        });
+
+      after(function (done) {
+        async.series([
+          function (firstCb) {
+            var keys = [
+              'str:sometype:yyy',
+              'lst:some_data',
+              'set:somenumber',
+              'zset:ssgrade',
+              'map:somename'
+            ];
+            extrnRedis.del(keys, function (err) {
+              if (err) {
+                firstCb(err);
+              } else {
+                firstCb();
+              }
+            });
+          },
+          function (secondCb) {
+            var tables = [
+              'str_sometype',
+              'lst_some_data',
+              'set_somenumber',
+              'zset_ssgrade',
+              'map_somename'
+            ];
+            extrnMySql.query('DROP TABLE IF EXISTS ??, ??, ??, ??, ??',
+              tables,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+    });
+
+    describe('#del()', function () {
+      beforeEach(function (done) {
+        async.series([
+          function (firstCb) {
+            extrnRedis.mset('str:sometype:yyy', 3003, 'str:sometype:xx',
+              'this is a value',
+              function (err) {
+                if (err) {
+                  firstCb(err);
+                } else {
+                  firstCb();
+                }
+              });
+          },
+          function (secondCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS str_sometype ' +
+              '(' +
+              '`key` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              });
+          }, function (thirdCb) {
+            extrnMySql.query(
+              'INSERT INTO str_sometype (`key` , value ) VALUES (?, ?), (?, ?) ',
+              [
+                'yyy',
+                3003,
+                'xx',
+                'this is a value'
+              ],
+              function (err) {
+                if (err) {
+                  thirdCb(err);
+                } else {
+                  thirdCb();
+                }
+              });
+          }, function (fourthCb) {
+            extrnRedis.sadd('set:somenumber', 4003,
+              function (err) {
+                if (err) {
+                  fourthCb(err);
+                } else {
+                  fourthCb();
+                }
+              });
+          }, function (fifthCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS set_somenumber ' +
+              '(' +
+              COLUMNS.MEMBER + ' VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  fifthCb(err);
+                } else {
+                  fifthCb();
+                }
+              });
+          }, function (sixthCb) {
+            extrnMySql.query(
+              'INSERT IGNORE INTO set_somenumber (`member`) VALUES (?)',
+              [
+                5003
+              ],
+              function (err) {
+                if (err) {
+                  sixthCb(err);
+                } else {
+                  sixthCb();
+                }
+              });
+          }, function (seventhCb) {
+            extrnRedis.mset('str:some_new_type:zz', 'hello',
+              'str:some_new_type:aa', 1000,
+              function (err) {
+                if (err) {
+                  seventhCb(err);
+                } else {
+                  seventhCb();
+                }
+              });
+          }, function (eighthCb) {
+            extrnMySql.query(
+              'CREATE TABLE IF NOT EXISTS str_some_new_type ' +
+              '(' +
+              '`key` VARCHAR(255) PRIMARY KEY, ' +
+              COLUMNS.VALUE + ' VARCHAR(255), ' +
+              COLUMNS.CREATION_DT + ' TIMESTAMP(3) DEFAULT NOW(3), ' +
+              COLUMNS.LAST_UPDT_DT + ' TIMESTAMP(3) DEFAULT NOW(3) ON UPDATE NOW(3)' +
+              ') ',
+              function (err) {
+                if (err) {
+                  eighthCb(err);
+                } else {
+                  eighthCb();
+                }
+              });
+          }, function (ninthCb) {
+            extrnMySql.query(
+              'INSERT INTO str_some_new_type (`key` , value ) VALUES (?, ?), (?, ?) ',
+              [
+                'zz',
+                'hello',
+                'aa',
+                1000
+              ],
+              function (err) {
+                if (err) {
+                  ninthCb(err);
+                } else {
+                  ninthCb();
+                }
+              });
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
+      it('should delete `str:sometype:xx` and `str:sometype:yyy` key ' +
+        'in Redis and MySQL', function (done) {
+        instance.del('str:sometype:xx', function (err, result) {
+          if (err) {
+            done(err);
+          } else {
+            expect(result).to.be.equals(1);
+            extrnRedis.exists('str:sometype:xx', function (err, result) {
+              if (err) {
+                done(err);
+              } else {
+                expect(result).to.be.equals(0);
+              }
+            });
+            setTimeout(function () {
+              extrnMySql.query(
+                'SELECT COUNT(1) AS cnt FROM str_sometype WHERE `key` = ? ',
+                'xx',
+                function (err, result) {
+                  if (err) {
+                    done(err);
+                  } else {
+                    expect(result[0].cnt).to.be.equals(0);
+                    extrnMySql.query(
+                      'SELECT COUNT(1) AS exist_cnt FROM str_sometype',
+                      function (err, result) {
+                        if (err) {
+                          done(err);
+                        } else {
+                          expect(result[0].exist_cnt).to.be.equals(1);
+                          instance.del('str:sometype:yyy', function (err, result) {
+                            if (err) {
+                              done(err);
+                            } else {
+                              expect(result).to.be.equals(1);
+                              extrnRedis.exists('str:sometype:yyy',
+                                function (err, result) {
+                                  if (err) {
+                                    done(err);
+                                  } else {
+                                    expect(result).to.be.equals(0);
+                                  }
+                                });
+                              setTimeout(function () {
+                                extrnMySql.query(
+                                  'SELECT COUNT(1) AS tbl_exist_cnt ' +
+                                  'FROM information_schema.TABLES ' +
+                                  'WHERE TABLE_NAME = ? ',
+                                  'str_sometype',
+                                  function (err, result) {
+                                    if (err) {
+                                      done(err);
+                                    } else {
+                                      expect(result[0].tbl_exist_cnt).to.be
+                                        .equals(0);
+                                      done();
+                                    }
+                                  });
+                              }, 400);
+                            }
+                          });
+                        }
+                      });
+                  }
+                });
+            }, 400);
+          }
+        });
+      });
+
+      it('should delete `str:some_new_type:zz`, `str:some_new_type:aa`, ' +
+        'and set:somenumber', function (done) {
+        instance.del(
+          [
+            'str:some_new_type:zz',
+            'str:some_new_type:aa',
+            'set:somenumber'
+          ],
+          function (err, result) {
+            if (err) {
+              done(err);
+            } else {
+              expect(result).to.be.equals(3);
+              extrnRedis.exists('str:some_new_type:zz', function (err, result) {
+                if (err) {
+                  done(err);
+                } else {
+                  expect(result).to.be.equals(0);
+                }
+              });
+              extrnRedis.exists('str:some_new_type:aa', function (err, result) {
+                if (err) {
+                  done(err);
+                } else {
+                  expect(result).to.be.equals(0);
+                }
+              });
+              extrnRedis.exists('set:somenumber', function (err, result) {
+                if (err) {
+                  done(err);
+                } else {
+                  expect(result).to.be.equals(0);
+                }
+              });
+              setTimeout(function () {
+                extrnMySql.query(
+                  'SELECT COUNT(1) AS tbl_exist_cnt ' +
+                  'FROM information_schema.TABLES ' +
+                  'WHERE TABLE_NAME IN (?, ?) ',
+                  ['str_some_new_type', 'set_somenumber'],
+                  function (err, result) {
+                    if (err) {
+                      done(err);
+                    } else {
+                      expect(result[0].tbl_exist_cnt).to.be.equals(0);
+                      done();
+                    }
+                  });
+              }, 400);
+            }
+          });
+      });
+
+      afterEach(function (done) {
+        async.series([
+          function (firstCb) {
+            var keys = [
+              'str:sometype:xx',
+              'str:sometype:yyy',
+              'str:some_new_type:zz',
+              'str:some_new_type:aa',
+              'set:somenumber',
+              'map:somename'
+            ];
+            extrnRedis.del(keys, function (err) {
+              if (err) {
+                firstCb(err);
+              } else {
+                firstCb();
+              }
+            });
+          },
+          function (secondCb) {
+            var tables = [
+              'str_sometype',
+              'str_some_new_type',
+              'set_somenumber',
+              'map_somename'
+            ];
+            extrnMySql.query('DROP TABLE IF EXISTS ??, ??, ??',
+              tables,
+              function (err) {
+                if (err) {
+                  secondCb(err);
+                } else {
+                  secondCb();
+                }
+              }
+            );
+          }
+        ], function (err) {
+          if (err) {
+            done(err);
+          } else {
+            done();
+          }
+        });
+      });
+
     });
 
     describe('#rename()', function () {
@@ -5845,6 +5856,7 @@ describe('Redis2MySQL', function () {
           });
       });
     });
+    /* End All */
 
     after(function (done) {
       _deleteData([testKeys], null, function (err) {
@@ -5864,13 +5876,14 @@ describe('Redis2MySQL', function () {
   /* Concurrency Test */
   describe('concurrency test', function () {
 
+    /* jscs: disable validateIndentation */
     context('iterative testing for concurrency', function () {
 
       var count = 0;
 
       async.whilst(
         function () {
-          return count < 5;
+          return count < 10;
         },
         function (callback) {
           count++;
@@ -6020,11 +6033,12 @@ describe('Redis2MySQL', function () {
                       instances[i].quit();
                     }
                   }
+                  separateInstance.quit();
+
                   if (err) {
                     return done(err);
                   }
-                  separateInstance.quit();
-                  done();
+                  return done();
                 });
             });
         });
@@ -6167,11 +6181,13 @@ describe('Redis2MySQL', function () {
                       instances[i].quit();
                     }
                   }
+                  separateInstance.quit();
+
                   if (err) {
                     return done(err);
                   }
-                  separateInstance.quit();
-                  done();
+
+                  return done();
                 });
             });
         });
@@ -6274,11 +6290,14 @@ describe('Redis2MySQL', function () {
                         instances[i].quit();
                       }
                     }
+
+                    separateInstance.quit();
+
                     if (err) {
                       return done(err);
                     }
-                    separateInstance.quit();
-                    done();
+
+                    return done();
                   });
               });
           });
@@ -6423,11 +6442,13 @@ describe('Redis2MySQL', function () {
                         instances[i].quit();
                       }
                     }
+                    separateInstance.quit();
+
                     if (err) {
                       return done(err);
                     }
-                    separateInstance.quit();
-                    done();
+
+                    return done();
                   });
               });
           });
@@ -6591,10 +6612,13 @@ describe('Redis2MySQL', function () {
                       instances[i].quit();
                     }
                   }
+
+                  separateInstance.quit();
+
                   if (err) {
                     return done(err);
                   }
-                  separateInstance.quit();
+
                   done();
                 });
             });
@@ -6759,11 +6783,13 @@ describe('Redis2MySQL', function () {
                         instances[i].quit();
                       }
                     }
+                    separateInstance.quit();
+
                     if (err) {
                       return done(err);
                     }
-                    separateInstance.quit();
-                    done();
+
+                    return done();
                   });
               });
           });
@@ -6928,11 +6954,13 @@ describe('Redis2MySQL', function () {
                         instances[i].quit();
                       }
                     }
+                    separateInstance.quit();
+
                     if (err) {
                       return done(err);
                     }
-                    separateInstance.quit();
-                    done();
+
+                    return done();
                   });
               });
           });
@@ -6956,6 +6984,7 @@ describe('Redis2MySQL', function () {
           });
       });
     });
+    /* jscs: enabled validateIndentation */
   });
   /* End Concurrency Test */
 

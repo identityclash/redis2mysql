@@ -34,14 +34,14 @@
   "disallowSpacesInFunctionDeclaration": {
     "beforeOpeningRoundBrace": true
   },
-  "requireMultipleVarDecl": "onevar",
+  "requireMultipleVarDecl": null,
   "requireBlocksOnNewline": 1,
   "disallowEmptyBlocks": true,
   "disallowSpacesInsideArrayBrackets": true,
   "disallowSpacesInsideParentheses": true,
   "disallowQuotedKeysInObjects": true,
   "disallowSpaceAfterObjectKeys": true,
-  "requireCommaBeforeLineBreak": true,
+  "requireCommaBeforeLineBreak": null,
   "disallowSpaceAfterPrefixUnaryOperators": true,
   "disallowSpaceBeforePostfixUnaryOperators": true,
   "disallowSpaceBeforeBinaryOperators": [

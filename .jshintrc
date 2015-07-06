@@ -17,5 +17,6 @@
   "immed": true,
   "node": true,
   "es3": true,
-  "mocha": true
+  "mocha": true,
+  "laxcomma": true
 }
